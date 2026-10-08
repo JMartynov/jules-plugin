@@ -1,35 +1,43 @@
-# Google Jules (EULIS) Task Controller Plugin (Version 2.1)
+# Google Jules (EULIS) Task Controller Plugin (Version 2.2)
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](plugin.json)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](plugin.json)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](README.md)
 [![Status](https://img.shields.io/badge/status-active-success.svg)](https://github.com/JMartynov/jules-plugin)
 
-An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Designed to maximize delegation across all software engineering workflows—including feature implementation, automated code reviews, exploratory research spikes, and test suite synthesis—while mathematically eliminating token waste through zero-token polling and automated task splitting.
+An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Designed to maximize delegation across all software engineering workflows while strictly enforcing **sub-agent execution** to eliminate token bloat (empirically proven to save **98.8% of main-thread tokens**).
 
 > 📖 **Looking for step-by-step operational instructions or troubleshooting?**  
 > Check the comprehensive [**Operational Runbook (`RUNBOOK.md`)**](RUNBOOK.md).
 
 ---
 
-## 🌟 What's New in Version 2.1
+## ⚡ Core Operational Law: Mandatory Sub-Agent Execution
 
-* **Always-On Delegation Policy (`rules/AGENTS.md`):** Automatically triages every prompt entering the IDE to maximize Jules delegation without needing manual invocation.
+> [!IMPORTANT]
+> **CRITICAL TOKEN RULE: DO NOT execute tests, polling, or verification directly in the primary context window.**
+> 
+> * **Empirical Evidence:** In benchmark testing, running invariant tests and status checks directly in the primary conversation consumed **1,037,426 tokens**. Offloading the exact same execution loop to a background sub-agent running on `Model: 'flash'` consumed only **~12,000 tokens** on the primary thread—a **98.8% token reduction**.
+> * **Mandatory Architecture:** The primary orchestrator's sole responsibility is **planning, task splitting, and dispatching**. All CLI execution, Jules submission, `jules-gate wait` polling, and `jules-gate verify` testing MUST be delegated to an isolated sub-agent.
+
+---
+
+## 🌟 What's New in Version 2.2
+
+* **Mandatory Sub-Agent Isolation (`rules/AGENTS.md`):** Prevents primary thread token explosion by enforcing sub-agent delegation (`Model: 'flash'`) for all testing, polling, and integration loops.
 * **Automated Task Separation Engine:** Decouples complex requests into **Component A (Cloud EULIS)** for core domain logic & mock tests, and **Component B (Local Agent)** for local secrets & database wiring.
 * **Multi-Modal Delegation:** Standardized workflows to offload **Code Reviews**, **Exploratory Spikes**, and **30+ Fuzz/Stress Tests** directly to Jules.
-* **Zero-Token Watcher:** `jules-gate wait` monitors background tasks natively in the terminal with **0 LLM input tokens consumed**.
+* **Universal CLI (`jules-gate`):** Includes `status`, `wait`, `verify`, `merge`, and `pr` commands across all IDEs and terminals.
 
 ---
 
 ## 🎯 The Core Philosophy: Maximize Delegation
-
-When pairing local IDE agents with Google Jules, the goal is to offload maximum heavy lifting to the cloud:
 
 ```
 [ User Request in IDE ]
            │
            ▼
 [ Step 0: Delegation Feasibility & Task Splitter ]
-   ├── Fully Delegatable ────────► Component A: 100% to Jules
+   ├── Fully Delegatable ────────► Component A: 100% to Jules via Sub-Agent
    ├── Partially Delegatable ────► Split: Component A (Jules) + Component B (Local)
    └── Strictly Local ───────────► Execute on Local IDE Thread
                                                 │
@@ -43,7 +51,7 @@ When pairing local IDE agents with Google Jules, the goal is to offload maximum 
                                │
        ┌───────────────────────┘
        ▼
-[ Step 2: Dispatch to Jules Sub-Agent (`Model: 'flash'`, Git Worktree) ]
+[ Step 2: MANDATORY Sub-Agent Dispatch (`Model: 'flash'`, `TypeName: 'self'`) ]
    ├── Starts session: `jules remote new --repo <owner/repo>`
    └── Sleeps token-free: `jules-gate wait <session_id>`
            │
@@ -80,31 +88,20 @@ $$\text{User Task} \longrightarrow \mathbf{\text{Component A (Remote EULIS)}} \;
 ### 1. Pre-flight Check
 Verify that the CLI tools are authenticated:
 ```bash
-which jules && jules remote list --repo
-which jules-gate
+jules-gate status
 ```
 
-### 2. Dispatch a Task
-Create a prompt file `.jules/task_prompt.md` with your requirements, then dispatch:
+### 2. Dispatch a Task via Sub-Agent
+Ask the assistant to dispatch:
+> *"Dispatch implementing the Go tool extractor to Jules via sub-agent, supervise it, and verify the branch."*
+
+The assistant spawns an isolated sub-agent on `flash` model that runs:
 ```bash
 REPO="owner/repository"
 jules remote new --repo "$REPO" < .jules/task_prompt.md
-```
-*Note the returned `<session_id>` (e.g. `12814125760466192699`).*
-
-### 3. Wait Token-Free
-```bash
-# Monitor single or multiple sessions simultaneously:
-jules-gate wait 12814125760466192699 --timeout 30
-```
-
-### 4. Verify & Integrate
-```bash
-# Option A: Fast-track merge directly into your current branch
-jules-gate merge 12814125760466192699
-
-# Option B: Push review branch and open a verified GitHub PR
-jules-gate pr 12814125760466192699
+jules-gate wait <session_id> --timeout 30
+jules-gate verify <session_id>
+jules-gate merge <session_id>
 ```
 
 ---
@@ -115,6 +112,7 @@ The universal orchestrator CLI is installed in your system PATH at `/Users/ivan/
 
 | Command | Syntax | Description |
 | :--- | :--- | :--- |
+| **`status`** | `jules-gate status` | Checks health of plugin, version, and script executable permissions. |
 | **`wait`** | `jules-gate wait <id...> [--timeout M]` | Polls one or more sessions every 30s. Consumes **0 LLM tokens** while waiting. |
 | **`verify`** | `jules-gate verify <id> [base_branch]` | Pulls patch to `jules/review-<id>`, applies diff, runs auto-detected tests, and reports pass/fail. |
 | **`merge`** | `jules-gate merge <id> [base_branch]` | Executes `verify`, merges into base branch with `--no-ff`, and deletes the review branch. |
@@ -129,20 +127,22 @@ The universal orchestrator CLI is installed in your system PATH at `/Users/ivan/
 jules-plugin/
 ├── .gitignore                               # Clean git tracking (ignores .jules/, *.patch)
 ├── LICENSE                                  # Apache License 2.0
-├── README.md                                # Comprehensive guide & architecture
+├── README.md                                # Comprehensive guide & architecture (v2.2)
 ├── RUNBOOK.md                               # In-Depth Operational Runbook & Playbooks
 ├── install.sh                               # Global installer script
-├── plugin.json                              # Manifest (v2.1.0)
+├── plugin.json                              # Manifest (v2.2.0)
 ├── bin/
 │   └── jules-gate                           # Portable, self-contained orchestrator CLI
 ├── rules/
-│   └── AGENTS.md                            # Always-on EULIS delegation policy
+│   └── AGENTS.md                            # Always-on EULIS delegation & subagent policy
 ├── scripts/
 │   ├── jules_poll_wait.sh                   # Token-free session watcher daemon
 │   └── worktree_gate.sh                     # Automated multi-language test gate
-└── skills/
-    └── jules-task-controller/
-        └── SKILL.md                         # Orchestration Skill specification (v2.1)
+├── skills/
+│   └── jules-task-controller/
+│       └── SKILL.md                         # Skill specification (v2.2)
+└── tests/
+    └── test_invariants.sh                   # Automated 21-point invariant test suite
 ```
 
 ---

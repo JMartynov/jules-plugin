@@ -1,6 +1,6 @@
 # Jules Task Controller: Operational Runbook
 
-**Version:** 2.1.0  
+**Version:** 2.2.0  
 **Target Audience:** Software Engineers, DevOps, Autonomous AI Agents (Antigravity / Gemini IDE, Claude Code, Cursor, JetBrains, VS Code)  
 **System Repository:** [`https://github.com/JMartynov/jules-plugin`](https://github.com/JMartynov/jules-plugin)
 
@@ -8,15 +8,16 @@
 
 ## 📑 Table of Contents
 1. [Architecture & Workflow Overview](#1-architecture--workflow-overview)
-2. [Pre-flight Checklist & Environment Setup](#2-pre-flight-checklist--environment-setup)
-3. [Step 0: Delegation Feasibility Triage & Task Splitting](#3-step-0-delegation-feasibility-triage--task-splitting)
-4. [Multi-Modal Delegation Playbooks (Code, Review, Spikes, Fuzzing)](#4-multi-modal-delegation-playbooks-code-review-spikes-fuzzing)
-5. [Step 1: Formulating Product-Agnostic Tasks](#5-step-1-formulating-product-agnostic-tasks)
-6. [Step 2: Sub-Agent Dispatch & Zero-Token Polling](#6-step-2-sub-agent-dispatch--zero-token-polling)
-7. [Step 3: Gated Verification & Test Execution](#7-step-3-gated-verification--test-execution)
-8. [Step 4: Integration Decisions (Merge vs. PR)](#8-step-4-integration-decisions-merge-vs-pr)
-9. [Parallel Execution & Merge Conflict Playbook](#9-parallel-execution--merge-conflict-playbook)
-10. [Troubleshooting & Failure Modes](#10-troubleshooting--failure-modes)
+2. [Mandatory Sub-Agent Isolation (98.8% Token Savings)](#2-mandatory-sub-agent-isolation-988-token-savings)
+3. [Pre-flight Checklist & Environment Setup](#3-pre-flight-checklist--environment-setup)
+4. [Step 0: Delegation Feasibility Triage & Task Splitting](#4-step-0-delegation-feasibility-triage--task-splitting)
+5. [Multi-Modal Delegation Playbooks (Code, Review, Spikes, Fuzzing)](#5-multi-modal-delegation-playbooks-code-review-spikes-fuzzing)
+6. [Step 1: Formulating Product-Agnostic Tasks](#6-step-1-formulating-product-agnostic-tasks)
+7. [Step 2: Sub-Agent Dispatch & Zero-Token Polling](#7-step-2-sub-agent-dispatch--zero-token-polling)
+8. [Step 3: Gated Verification & Test Execution](#8-step-3-gated-verification--test-execution)
+9. [Step 4: Integration Decisions (Merge vs. PR)](#9-step-4-integration-decisions-merge-vs-pr)
+10. [Parallel Execution & Merge Conflict Playbook](#10-parallel-execution--merge-conflict-playbook)
+11. [Troubleshooting & Failure Modes](#11-troubleshooting--failure-modes)
 
 ---
 
@@ -33,11 +34,12 @@ The Jules Task Controller implements a **tri-tier hybrid orchestration architect
                                          │ Spawns isolated worker
                                          ▼
                       ┌──────────────────────────────────────┐
-                      │    Sub-Agent (`flash`, Git Worktree) │
+                      │  MANDATORY Sub-Agent (`flash`)       │
                       │  • Dispatches `jules remote new`     │
                       │  • Runs `jules-gate wait` (0 tokens) │
+                      │  • Runs `jules-gate verify` & tests  │
                       └──────────────────┬───────────────────┘
-                                         │ Patch ready
+                                         │ Single summary report
                                          ▼
                       ┌──────────────────────────────────────┐
                       │       `jules-gate verify` Gate       │
@@ -52,28 +54,49 @@ The Jules Task Controller implements a **tri-tier hybrid orchestration architect
             (Fast-forward / --no-ff)                (Verified GitHub PR via gh)
 ```
 
-### The "Zero-Token Polling" Innovation
-In naive AI agent workflows, monitoring an asynchronous remote agent (like Jules or GitHub Actions) involves sleep loops where the LLM re-reads its full conversation context on every check. In large sessions (100k+ token context), 20 status checks consume **over 2.4 million input tokens**.  
-The `jules-gate wait` daemon runs natively in the terminal background, polling the CLI and sleeping with **0 LLM tokens consumed**.
+---
+
+## 2. Mandatory Sub-Agent Isolation (98.8% Token Savings)
+
+> [!IMPORTANT]
+> **Empirical Law:** Never execute Jules CLI dispatch, test execution loops, or status checks directly on the primary conversation thread.
+
+### Empirical Benchmarks:
+* **Primary Thread Execution (Turn 16):** Polling 20 times in a 100k context burned **1,037,426 tokens**.
+* **Sub-Agent Execution (Turn 18):** Delegating the exact same lifecycle to a background sub-agent running on `Model: 'flash'` consumed **~12,000 tokens** on the primary thread—a **98.8% token reduction**.
+
+### Sub-Agent Invocation Protocol:
+The primary agent calls `invoke_subagent` and immediately halts tool calls:
+```json
+{
+  "Subagents": [
+    {
+      "TypeName": "self",
+      "Model": "flash",
+      "Workspace": "inherit",
+      "Role": "Jules Pipeline Runner",
+      "Prompt": "Execute the task: submit to Jules, run jules-gate wait, verify with jules-gate verify, merge, and report back."
+    }
+  ]
+}
+```
 
 ---
 
-## 2. Pre-flight Checklist & Environment Setup
+## 3. Pre-flight Checklist & Environment Setup
 
 Before executing any orchestration tasks, verify the local prerequisites:
 
 ```bash
-# 1. Verify Jules CLI is installed and authenticated
+# 1. Verify health of plugin, version, and scripts
+jules-gate status
+
+# 2. Verify Jules CLI is installed and authenticated
 which jules || npm install -g @google/jules
 jules remote list --repo
 
-# 2. Verify GitHub CLI (gh) authentication (for PR workflows)
+# 3. Verify GitHub CLI (gh) authentication (for PR workflows)
 gh auth status
-
-# 3. Verify jules-gate CLI is in system PATH
-which jules-gate
-# If missing, run one-click installer:
-~/.gemini/config/plugins/jules-plugin/install.sh
 
 # 4. Verify Git repository is in a clean working state
 git status -s
@@ -81,7 +104,7 @@ git status -s
 
 ---
 
-## 3. Step 0: Delegation Feasibility Triage & Task Splitting
+## 4. Step 0: Delegation Feasibility Triage & Task Splitting
 
 Not every task should be sent to a remote cloud VM. Run every incoming requirement through this 4-point feasibility matrix:
 
@@ -116,13 +139,13 @@ $$\text{Task} \longrightarrow \mathbf{\text{Component A (Cloud EULIS)}} \;+\; \m
 
 * **Component A (Cloud EULIS):**
   * Core domain algorithms, data validation, AST/regex parsing, and cache key computation.
-  * Abstract interfaces and comprehensive mock unit tests.
+  * Abstract interfaces and comprehensive mock unit tests (dispatched to Jules via Sub-Agent).
 * **Component B (Local IDE):**
   * Uncommitted `.env` secrets, database connection pools, local Docker networking, and integration test execution.
 
 ---
 
-## 4. Multi-Modal Delegation Playbooks (Code, Review, Spikes, Fuzzing)
+## 5. Multi-Modal Delegation Playbooks (Code, Review, Spikes, Fuzzing)
 
 ### Playbook 1: Delegated Code Review & Security Auditing
 Before merging a large PR or branch, offload the review to Jules:
@@ -168,7 +191,7 @@ EOF
 
 ---
 
-## 5. Step 1: Formulating Product-Agnostic Tasks
+## 6. Step 1: Formulating Product-Agnostic Tasks
 
 When writing feature tasks for Jules, provide generous, contract-first instructions. Never assume Jules has implicit context about internal product names.
 
@@ -204,32 +227,27 @@ Explain what needs to be implemented and why, using standard software engineerin
 
 ---
 
-## 6. Step 2: Sub-Agent Dispatch & Zero-Token Polling
+## 7. Step 2: Sub-Agent Dispatch & Zero-Token Polling
 
-### 1. Launch Session via Jules CLI:
+### 1. Launch Session via Jules CLI (Run by Sub-Agent):
 ```bash
-# Detect repository in owner/repo format
 REPO=$(git config --get remote.origin.url | sed -E 's/.*github\.com[:\/](.*)\.git/\1/')
-
-# Dispatch task to Jules
 jules remote new --repo "$REPO" < .jules/task_prompt.md
 ```
-*Take note of the `<session_id>` printed in the terminal output.*
 
 ### 2. Zero-Token Polling Wait:
-Run `jules-gate wait` in the background or terminal:
+Run `jules-gate wait` in the background terminal:
 ```bash
-# For a single session:
-jules-gate wait 12814125760466192699 --timeout 30
-
-# For multiple parallel sessions:
-jules-gate wait 12814125760466192699 16133198684955322528 9266001727424468474 --timeout 45
+jules-gate wait <session_id> --timeout 30
 ```
-The script will print progress updates every 30 seconds and exit with code `0` when all sessions complete.
+*For parallel tasks:*
+```bash
+jules-gate wait <id1> <id2> <id3> --timeout 45
+```
 
 ---
 
-## 7. Step 3: Gated Verification & Test Execution
+## 8. Step 3: Gated Verification & Test Execution
 
 Once the session finishes, run the verification gate:
 ```bash
@@ -241,7 +259,7 @@ jules-gate verify <session_id> [base_branch]
 2. **Creates Isolated Branch:** Checks out `jules/review-<session_id>` branched from your current working branch.
 3. **Applies Diff:** Executes `git apply` with integrity checks.
 4. **Auto-Detects Test Runner:**
-   * Python (`pytest` / `unittest`)
+   * Python (`python3 -m pytest` / `unittest`)
    * TypeScript / JavaScript (`npm test` / `pnpm` / `yarn`)
    * Rust (`cargo test`)
    * Go (`go test ./...`)
@@ -252,9 +270,7 @@ jules-gate verify <session_id> [base_branch]
 
 ---
 
-## 8. Step 4: Integration Decisions (Merge vs. PR)
-
-Choose the integration path that fits your project model:
+## 9. Step 4: Integration Decisions (Merge vs. PR)
 
 ### Option A: Fast-Track Merge (Solo / Internal Projects)
 ```bash
@@ -270,7 +286,7 @@ jules-gate pr <session_id> [base_branch]
 
 ---
 
-## 9. Parallel Execution & Merge Conflict Playbook
+## 10. Parallel Execution & Merge Conflict Playbook
 
 When running 2 to 5 Jules tasks simultaneously:
 
@@ -290,13 +306,10 @@ main branch ───┤
    git checkout jules/review-<session_id_B>
    git rebase main
    ```
-3. **Resolve Any Conflict Markers:**
-   * If both tasks registered new handlers in a dictionary or switch statement, combine both entries.
-   * If both tasks added test fixtures, keep both fixtures.
+3. **Resolve Any Conflict Markers:** Combine non-colliding declarations, preserve test fixtures.
 4. **Re-verify:**
    ```bash
-   # Run project test suite
-   pytest   # or npm test, cargo test
+   python3 -m pytest   # or npm test, cargo test
    git rebase --continue
    ```
 5. **Integrate Branch B:**
@@ -306,38 +319,17 @@ main branch ───┤
 
 ---
 
-## 10. Troubleshooting & Failure Modes
+## 11. Troubleshooting & Failure Modes
 
-### 1. `jules: command not found`
-* **Fix:** Install globally:
-  ```bash
-  npm install -g @google/jules
-  ```
+### 1. `jules-gate status` reports errors
+* Run `~/.gemini/config/plugins/jules-plugin/install.sh` to refresh executable permissions and PATH symlinks.
 
-### 2. `Authentication error: not logged in`
-* **Fix:** Run the interactive login in terminal:
-  ```bash
-  jules login
-  ```
+### 2. Excessive Polling Token Consumption
+* Ensure the primary agent called `invoke_subagent` and stopped calling tools. Do not check status in a loop on the primary thread.
 
 ### 3. Patch Application Fails (`git apply error: patch does not apply`)
-* **Root Cause:** The base branch has drifted significantly since Jules started working.
-* **Fix:** Use 3-way merge fallback:
+* Use 3-way merge fallback:
   ```bash
   git checkout -b jules/review-<id> main
   git apply --3way .jules/patches/<id>.patch
   ```
-
-### 4. Over-Eager Regex / AST Matches
-* **Symptom:** Jules' patch breaks existing tests by matching generic class declarations or constructor calls.
-* **Fix:** Add negative lookbehinds in the prompt or hotfix locally:
-  ```python
-  # Change:
-  r'\{[^{}]*name:\s*["\']([^"\']+)["\']'
-  # To:
-  r'(?<!Server)\{[^{}]*name:\s*["\']([^"\']+)["\']'
-  ```
-
-### 5. Excessive Polling Token Consumption
-* **Symptom:** LLM agent conversation grows by hundreds of thousands of tokens while waiting for Jules.
-* **Fix:** Ensure you are using `jules-gate wait` in the terminal instead of an LLM `schedule` / sleep loop.

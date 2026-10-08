@@ -11,9 +11,9 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
 
 2. **Automated Triage & Task Separation (Run on Every Task)**  
    Before writing extensive local code or launching an autonomous local loop, run the **4-Point Triage**:
-   * **Full Delegation:** If the task is self-contained (parsers, algorithms, isolated features, unit tests, doc generation) ➔ Dispatch directly to Jules.
+   * **Full Delegation:** If the task is self-contained (parsers, algorithms, isolated features, unit tests, doc generation) ➔ Dispatch directly to Jules via Sub-Agent.
    * **Partial Delegation (Task Split):** If the task has local dependencies (local Docker, localhost DB, uncommitted `.env` secrets) ➔ **Automatically split the task**:
-     * **Component A (Jules):** Pure domain logic, algorithms, abstract interfaces, and mock unit tests.
+     * **Component A (Jules):** Pure domain logic, algorithms, abstract interfaces, and mock unit tests (dispatched to Jules via Sub-Agent).
      * **Component B (Local):** Local secret injection, DB connection pool wiring, and environment configuration.
    * **Non-Delegatable:** If the task strictly requires interactive local debugging, local hardware, or ad-hoc uncommitted file forensics ➔ Implement locally on the IDE thread.
 
@@ -23,7 +23,8 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
    * **Delegated Research & Spikes:** Have Jules build prototype modules and evaluate third-party libraries in isolated branches.
    * **Delegated Test Synthesis:** Have Jules write 20–50 edge-case and fuzz tests for critical functions.
 
-4. **Zero-Token Polling & Sub-Agent Mandate:**  
-   * **NEVER** run polling sleep loops in the primary LLM context.
-   * Always invoke `jules-gate wait` via terminal, or spawn an isolated sub-agent with `Model: 'flash'` and `Workspace: 'share'` (Git worktree).
-   * Verify all completed patches with `jules-gate verify` before merging or creating Pull Requests.
+4. **Mandatory Sub-Agent Execution (98.8% Token Savings):**  
+   * **NEVER** run Jules CLI dispatch, long-running test suites, or polling loops directly in the primary LLM context window.
+   * **ALWAYS** spawn an isolated sub-agent with `Model: 'flash'`, `TypeName: 'self'`, and `Workspace: 'inherit'`.
+   * The sub-agent executes `jules-gate wait`, `jules-gate verify`, and tests in its own ephemeral context, absorbing all polling and test output tokens.
+   * The primary agent must remain idle with zero tool calls until the sub-agent completes and reports back.

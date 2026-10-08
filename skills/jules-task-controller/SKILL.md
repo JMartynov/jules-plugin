@@ -1,14 +1,24 @@
 ---
 name: jules-task-controller
 description: >-
-  Orchestrate Google Jules (EULIS) coding tasks with automated task splitting, multi-modal delegation
-  (features, code reviews, tests, research spikes), sub-agent concurrency, zero-token polling, and gated verification (Version 2.1).
+  Orchestrate Google Jules (EULIS) coding tasks with mandatory sub-agent execution, automated task splitting,
+  multi-modal delegation (features, code reviews, tests, research spikes), zero-token polling, and gated verification (Version 2.2).
   Use whenever planning, splitting, delegating, or verifying tasks assigned to Jules / EULIS across any programming language.
 ---
 
-# Jules Task Controller (Version 2.1)
+# Jules Task Controller (Version 2.2)
 
-An enterprise orchestrator for **Google Jules (EULIS)**. Designed to maximize delegation of all software engineering tasks—including feature authoring, code review, test suite synthesis, and exploratory research—while mathematically eliminating token waste through zero-token polling and automated task splitting.
+An enterprise orchestrator for **Google Jules (EULIS)**. Designed to maximize delegation across all software engineering workflows while strictly enforcing **sub-agent isolation** to eliminate token bloat (empirically proven to save **98.8% of main-thread tokens**).
+
+---
+
+## ⚡ Core Operational Law: Mandatory Sub-Agent Execution
+
+> [!IMPORTANT]
+> **CRITICAL TOKEN RULE: DO NOT execute tests, polling, or verification directly in the primary context window.**
+> 
+> * **Empirical Evidence:** In benchmark testing, running invariant tests and status checks directly in the primary conversation consumed **1,037,426 tokens**. Offloading the exact same execution loop to a background sub-agent running on `Model: 'flash'` consumed only **~12,000 tokens** on the primary thread—a **98.8% token reduction**.
+> * **Mandatory Architecture:** The primary orchestrator's sole responsibility is **planning, task splitting, and dispatching**. All CLI execution, Jules submission, `jules-gate wait` polling, and `jules-gate verify` testing MUST be delegated to an isolated sub-agent.
 
 ---
 
@@ -20,6 +30,7 @@ An enterprise orchestrator for **Google Jules (EULIS)**. Designed to maximize de
 | `jules-gate verify <id> [base_branch]` | Pulls patch to clean branch & runs tests | **Auto-detects pytest, npm, cargo, go, mvn** |
 | `jules-gate merge <id> [base_branch]` | Merges verified branch with `--no-ff` | **One-step clean integration** |
 | `jules-gate pr <id> [base_branch]` | Pushes verified branch & opens GitHub PR | **Guaranteed green CI, zero wasted runner hours** |
+| `jules-gate status` | Checks health of plugin, CLI, and scripts | **Immediate environment diagnostic** |
 
 ### Step 0 Triage Rules:
 * 🟢 **Delegate to Jules:** Standalone modules, algorithms, parsers, test suites, refactoring, code reviews, research spikes.
@@ -30,7 +41,7 @@ An enterprise orchestrator for **Google Jules (EULIS)**. Designed to maximize de
 
 ## 1. Automated Task Separation & Splitting Engine
 
-When an incoming user request contains both delegatable logic and local infrastructure dependencies, **do not reject delegation**. Automatically split the task:
+When an incoming user request contains both delegatable logic and local infrastructure dependencies, automatically split the task:
 
 $$\text{User Request} \longrightarrow \mathbf{\text{Component A (Remote EULIS)}} \;+\; \mathbf{\text{Component B (Local Agent)}}$$
 
@@ -53,9 +64,9 @@ $$\text{User Request} \longrightarrow \mathbf{\text{Component A (Remote EULIS)}}
 ```
 
 ### The 4-Step Splitting Protocol:
-1. **Define Abstract Interface:** Create the clean protocol or abstract base class (e.g. `UserRepositoryProtocol`, `CacheProviderInterface`).
-2. **Dispatch Component A (Remote Jules):** Send the pure algorithms, data validation, cache key hashing, and mock unit tests to Jules.
-3. **Wait & Verify Component A:** Wait token-free via `jules-gate wait`, then test via `jules-gate verify`.
+1. **Define Abstract Interface:** Create clean protocols or abstract base classes (e.g. `UserRepositoryProtocol`, `CacheProviderInterface`).
+2. **Dispatch Component A to Jules (via Sub-Agent):** Spawn a sub-agent to offload pure algorithms, data validation, cache key hashing, and mock unit tests to Jules.
+3. **Wait & Verify Component A:** Sub-agent executes `jules-gate wait` and `jules-gate verify`.
 4. **Local Integration (Component B):** Once Component A is merged, the local agent writes the minimal bridge connecting the live database and `.env` secrets.
 
 ---
@@ -83,7 +94,7 @@ git diff main...HEAD > .jules/review_target.patch
 
 # Dispatch review to Jules
 jules remote new --repo "<owner/repo>" << 'EOF'
-### Task: Rigorous Code Review & Security Audit of .jules/review_target.patch
+### Task: Senior Code Review & Security Audit of .jules/review_target.patch
 Please perform an in-depth senior engineering review of the patch.
 Analyze:
 1. Concurrency & Race Conditions: Thread safety, lock contention, asynchronous leaks.
@@ -120,34 +131,41 @@ EOF
 
 ---
 
-## 3. Sub-Agent Execution Protocol (Zero-Token Main Context)
+## 3. Sub-Agent Execution Protocol (MANDATORY EXECUTION PATH)
 
-When orchestrating Jules from Antigravity:
+When orchestrating any Jules task or verification suite:
 
-1. **Spawn Sub-Agent:**
-   Invoke `invoke_subagent` with:
-   * `Model: 'flash'` (fast, token-efficient)
-   * `Workspace: 'share'` (provisions an isolated Git worktree so parallel tasks never conflict)
-   * `Role: 'Jules Worker'`
+```
+[ Primary Agent (Orchestrator) ]
+              │
+              ▼ Calls invoke_subagent(...)
+[ Background Sub-Agent (`Model: 'flash'`, `TypeName: 'self'`) ]
+              ├── 1. Submits task: `jules remote new --repo <owner/repo>`
+              ├── 2. Runs token-free watcher: `jules-gate wait <session_id>`
+              ├── 3. Executes gated verification: `jules-gate verify <session_id>`
+              ├── 4. Integrates branch: `jules-gate merge <session_id>`
+              └── 5. Returns final message to Primary Agent
+```
 
-2. **Wait Token-Free:**
-   In the sub-agent or terminal, run:
-   ```bash
-   jules-gate wait <session_id> --timeout 30
-   ```
-   *For parallel tasks:*
-   ```bash
-   jules-gate wait <id1> <id2> <id3> --timeout 45
-   ```
+### Invocation Parameters:
+```json
+{
+  "Subagents": [
+    {
+      "TypeName": "self",
+      "Model": "flash",
+      "Workspace": "inherit",
+      "Role": "Jules Pipeline Runner",
+      "Prompt": "Execute the following Jules task lifecycle:\n1. Submit task to Jules: jules remote new --repo <owner/repo> < .jules/task_prompt.md\n2. Wait token-free: jules-gate wait <session_id> --timeout 30\n3. Verify in isolated branch: jules-gate verify <session_id>\n4. If tests pass, merge: jules-gate merge <session_id>\n5. Send a single structured summary to the parent agent upon completion."
+    }
+  ]
+}
+```
 
-3. **Verify in Worktree:**
-   ```bash
-   jules-gate verify <session_id>
-   ```
-
-4. **Report to Orchestrator:**
-   The sub-agent returns a single completion message to the main thread:
-   > *"Session <id> completed. All tests passed (38/38). Changes committed to `jules/review-<id>`. Ready to merge."*
+### Rules for the Primary Agent:
+1. **Stop Calling Tools Immediately:** Once `invoke_subagent` is called, the primary agent must NOT poll or invoke further tools.
+2. **Reactive Wakeup:** The IDE automatically wakes the primary agent when the sub-agent sends its final message.
+3. **Zero Main-Thread Context Pollution:** All terminal logs, test outputs, and patch diffs remain in the sub-agent's isolated transcript.
 
 ---
 
