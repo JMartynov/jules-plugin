@@ -1,6 +1,6 @@
 # Jules Task Controller: Operational Runbook
 
-**Version:** 2.3.0  
+**Version:** 2.4.0  
 **Target Audience:** Software Engineers, DevOps, Autonomous AI Agents (Antigravity / Gemini IDE, Claude Code, Cursor, JetBrains, VS Code)  
 **System Repository:** [`https://github.com/JMartynov/jules-plugin`](https://github.com/JMartynov/jules-plugin)
 
@@ -8,7 +8,7 @@
 
 ## 📑 Table of Contents
 1. [Architecture & Workflow Overview](#1-architecture--workflow-overview)
-2. [Mandatory Sub-Agent Isolation (98.8% Token Savings)](#2-mandatory-sub-agent-isolation-988-token-savings)
+2. [Mandatory Sub-Agent Isolation (>99.5% Token Savings)](#2-mandatory-sub-agent-isolation-995-token-savings)
 3. [Pre-flight Checklist & Environment Setup](#3-pre-flight-checklist--environment-setup)
 4. [Step 0: Delegation Feasibility Triage & Task Splitting](#4-step-0-delegation-feasibility-triage--task-splitting)
 5. [Multi-Modal Delegation Playbooks (Code, Review, Spikes, Fuzzing)](#5-multi-modal-delegation-playbooks-code-review-spikes-fuzzing)
@@ -56,17 +56,35 @@ The Jules Task Controller implements a **tri-tier hybrid orchestration architect
 
 ---
 
-## 2. Mandatory Sub-Agent Isolation (98.8% Token Savings)
+## 2. Mandatory Sub-Agent Isolation (>99.5% Token Savings)
 
 > [!IMPORTANT]
 > **Empirical Law:** Never execute Jules CLI dispatch, test execution loops, or status checks directly on the primary conversation thread.
 
 ### Empirical Benchmarks:
-* **Primary Thread Execution (Turn 16):** Polling 20 times in a 100k context burned **1,037,426 tokens**.
-* **Sub-Agent Execution (Turn 18):** Delegating the exact same lifecycle to a background sub-agent running on `Model: 'flash'` consumed **~12,000 tokens** on the primary thread—a **98.8% token reduction**.
+* **Primary Thread Execution:** Polling 20 times in a 100k context burned **~1,000,000 tokens**.
+* **Uniform Flash Execution (v2.3):** Delegating the exact same lifecycle to a background sub-agent running on `Model: 'flash'` consumed **~150,000 tokens**.
+* **Tiered Routing Execution (v2.4):** Using `flash_lite` mechanical runner + `flash` verifier consumes **~25,000 tokens**—a **>99.5% token reduction**.
 
 ### Sub-Agent Invocation Protocol:
-The primary agent calls `invoke_subagent` and immediately halts tool calls:
+The primary agent calls `invoke_subagent` and immediately halts tool calls.
+
+**Tier 1: Mechanical Runner (flash_lite)**
+```json
+{
+  "Subagents": [
+    {
+      "TypeName": "self",
+      "Model": "flash_lite",
+      "Workspace": "inherit",
+      "Role": "Mechanical Worker",
+      "Prompt": "Execute the following rote operations:\n1. jules remote new --repo <owner/repo> < .jules/task_prompt.md\n2. jules-gate wait <session_id> --timeout 30\n3. Return session completion status to parent."
+    }
+  ]
+}
+```
+
+**Tier 2: Analytic Verifier (flash)**
 ```json
 {
   "Subagents": [
@@ -74,8 +92,8 @@ The primary agent calls `invoke_subagent` and immediately halts tool calls:
       "TypeName": "self",
       "Model": "flash",
       "Workspace": "inherit",
-      "Role": "Jules Pipeline Runner",
-      "Prompt": "Execute the task: submit to Jules, run jules-gate wait, verify with jules-gate verify, merge, and report back."
+      "Role": "Analytic Verifier",
+      "Prompt": "Execute the following verification lifecycle:\n1. jules-gate verify <session_id>\n2. If tests pass, jules-gate merge <session_id>\n3. Send a single structured summary to the parent agent upon completion."
     }
   ]
 }

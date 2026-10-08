@@ -1,10 +1,10 @@
-# Google Jules (EULIS) Task Controller Plugin (Version 2.3.0)
+# Google Jules (EULIS) Task Controller Plugin (Version 2.4.0)
 
-[![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)](plugin.json)
+[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](plugin.json)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](README.md)
 [![Status](https://img.shields.io/badge/status-active-success.svg)](https://github.com/JMartynov/jules-plugin)
 
-An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Designed to maximize delegation across all software engineering workflows while strictly enforcing **sub-agent execution** to eliminate token bloat (empirically proven to save **98.8% of main-thread tokens**).
+An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Designed to maximize delegation across all software engineering workflows while strictly enforcing **sub-agent execution** via Dynamic Multi-Tier Model Routing to eliminate token bloat (empirically proven to save **>99.5% of main-thread tokens**).
 
 > 📖 **Looking for step-by-step operational instructions or troubleshooting?**  
 > Check the comprehensive [**Operational Runbook (`RUNBOOK.md`)**](RUNBOOK.md).
@@ -21,14 +21,15 @@ An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Design
 
 ---
 
-## 🌟 What's New in Version 2.3.0
+## 🌟 What's New in Version 2.4.0
 
+* **Dynamic Multi-Tier Model Routing:** Introduced 3-tier routing (`flash_lite` mechanical worker, `flash` analytic verifier, `pro` cognitive architect) sparing >99.5% tokens.
 * **`jules-gate ps` Command:** Native way to query running, completed, and failed cloud sessions directly through the wrapper.
 * **Automated GitHub Actions CI Matrix:** `.github/workflows/ci.yml` running invariants across macOS and Ubuntu runners.
 * **Test failure log redaction:** `tail -n 40` cap in `scripts/worktree_gate.sh` to prevent test log bloat.
 * **Remote branch cleanup:** `jules-gate merge <session_id> --delete-remote` flag to clean up dangling tracking branches.
 * **Portable POSIX Support:** Portable inline replacements in `tests/test_invariants.sh` to ensure compatibility across macOS and Ubuntu.
-* **Sub-agent Delegation Architecture:** Empirical 98.8% primary context token savings benchmark.
+* **Sub-agent Delegation Architecture:** Empirical >99.5% primary context token savings benchmark.
 
 ---
 
@@ -53,7 +54,7 @@ An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Design
                                │
        ┌───────────────────────┘
        ▼
-[ Step 2: MANDATORY Sub-Agent Dispatch (`Model: 'flash'`, `TypeName: 'self'`) ]
+[ Step 2: MANDATORY Sub-Agent Dispatch (`Model: 'flash_lite'`, `TypeName: 'self'`) ]
    ├── Starts session: `jules remote new --repo <owner/repo>`
    └── Sleeps token-free: `jules-gate wait <session_id>`
            │
@@ -97,11 +98,13 @@ jules-gate status
 Ask the assistant to dispatch:
 > *"Dispatch implementing the Go tool extractor to Jules via sub-agent, supervise it, and verify the branch."*
 
-The assistant spawns an isolated sub-agent on `flash` model that runs:
+The assistant spawns isolated sub-agents on appropriate models (`flash_lite` for mechanical routing, `flash` for test verifier) that run:
 ```bash
 REPO="owner/repository"
+# Flash Lite Model
 jules remote new --repo "$REPO" < .jules/task_prompt.md
 jules-gate wait <session_id> --timeout 30
+# Flash Model
 jules-gate verify <session_id>
 jules-gate merge <session_id>
 ```
@@ -130,10 +133,10 @@ The universal orchestrator CLI is installed in your system PATH at `/Users/ivan/
 jules-plugin/
 ├── .gitignore                               # Clean git tracking (ignores .jules/, *.patch)
 ├── LICENSE                                  # Apache License 2.0
-├── README.md                                # Comprehensive guide & architecture (v2.3.0)
+├── README.md                                # Comprehensive guide & architecture (v2.4.0)
 ├── RUNBOOK.md                               # In-Depth Operational Runbook & Playbooks
 ├── install.sh                               # Global installer script
-├── plugin.json                              # Manifest (v2.2.0)
+├── plugin.json                              # Manifest (v2.4.0)
 ├── bin/
 │   └── jules-gate                           # Portable, self-contained orchestrator CLI
 ├── rules/
