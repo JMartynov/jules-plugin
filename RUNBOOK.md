@@ -286,7 +286,67 @@ jules-gate pr <session_id> [base_branch]
 
 ---
 
-## 10. Parallel Execution & Merge Conflict Playbook
+## 10. Deploying Artifacts to Repository `docs/`
+
+During development and automated delegation, multiple forms of artifacts are produced (delegated security reviews, research spikes, RFCs, architecture specs, and invariant test/benchmark reports). All artifacts should be systematically preserved and version-controlled under `docs/`.
+
+### Directory Taxonomy:
+```text
+docs/
+├── IMPLEMENTATION.md         # Comprehensive architectural & implementation blueprints
+├── reviews/                  # Delegated Jules PR reviews & security audits
+├── spikes/                   # Prototype research notes & RFC evaluations
+└── reports/                  # Test invariant verification & token benchmark logs
+```
+
+### Deployment Strategy 1: Remote Jules Task Direct Deployment (Recommended)
+When submitting tasks to Jules, mandate the artifact destination in the prompt so Jules writes it directly to the repository:
+
+```bash
+jules remote new --repo "$REPO" --session "### Task: Security Audit
+1. Audit authentication flow in src/auth/.
+2. Output your completed Markdown review artifact to:
+   docs/reviews/review_\$(date +%Y%m%d)_auth.md
+"
+```
+After completion, verify and merge via `jules-gate`:
+```bash
+jules-gate wait <SESSION_ID> --timeout 30
+jules-gate verify <SESSION_ID> master
+jules-gate merge <SESSION_ID> master
+git push origin master
+```
+
+### Deployment Strategy 2: Promoting IDE / Agent Brain Artifacts
+When artifacts are generated inside an Antigravity / Gemini IDE pair-programming session (stored in `.gemini/antigravity/brain/<conv_id>/`):
+
+```bash
+# 1. Identify generated artifact path
+# (e.g., $APPDATA/brain/<conversation-id>/artifact.md)
+
+# 2. Deploy to designated category directory
+mkdir -p docs/reports docs/reviews docs/spikes
+cp "\$ARTIFACT_PATH" docs/reports/verification_benchmark_\$(date +%Y%m%d).md
+
+# 3. Stage, commit, and push
+git add docs/
+git commit -m "docs: deploy verification benchmark artifact to docs/reports/"
+git push origin master
+```
+
+### Deployment Strategy 3: Automated Invariant Test Artifact Archival
+To capture an immutable record of test suite runs and token savings benchmarks:
+```bash
+# Capture invariant test suite run to docs/reports/
+./tests/test_invariants.sh > docs/reports/invariants_run_\$(date +%Y%m%d).log 2>&1
+git add docs/reports/
+git commit -m "docs: archive test invariant suite execution log"
+git push origin master
+```
+
+---
+
+## 11. Parallel Execution & Merge Conflict Playbook
 
 When running 2 to 5 Jules tasks simultaneously:
 
@@ -319,7 +379,7 @@ main branch ───┤
 
 ---
 
-## 11. Troubleshooting & Failure Modes
+## 12. Troubleshooting & Failure Modes
 
 ### 1. `jules-gate status` reports errors
 * Run `~/.gemini/config/plugins/jules-plugin/install.sh` to refresh executable permissions and PATH symlinks.

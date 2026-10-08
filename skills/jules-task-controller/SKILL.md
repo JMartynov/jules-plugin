@@ -202,3 +202,22 @@ When multiple parallel Jules branches finish:
 * If review or tests fail: **Max 3 retries**.
 * Provide Jules with the exact test failure output and failure diff.
 * If 3 attempts fail, halt and escalate to the human developer.
+
+---
+
+## 6. Deploying Artifacts to Repository `docs/`
+
+Capture all generated outputs (security reviews, spikes, benchmark summaries) under `docs/`:
+
+```text
+docs/
+├── IMPLEMENTATION.md         # Architecture blueprints & release notes
+├── reports/                  # Benchmark metrics & invariant verification logs
+├── reviews/                  # Delegated Jules PR reviews & security audits
+└── spikes/                   # Prototype research notes & RFC evaluations
+```
+
+- **Remote Direct:** Include output file in Jules prompt: `docs/reviews/review_<date>.md`. Integrate via `jules-gate merge <id> master`.
+- **IDE Artifact Sync:** Copy session artifacts from `.gemini/antigravity/brain/` into `docs/reports/` and commit.
+- **Verification History:** Record test suite runs: `./tests/test_invariants.sh > docs/reports/invariants_run_<date>.log 2>&1`.
+

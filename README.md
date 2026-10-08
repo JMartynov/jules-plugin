@@ -136,6 +136,11 @@ jules-plugin/
 ├── plugin.json                              # Manifest (v2.2.0)
 ├── bin/
 │   └── jules-gate                           # Portable, self-contained orchestrator CLI
+├── docs/                                    # System architecture, reviews, spikes & reports
+│   ├── IMPLEMENTATION.md                    # Core v2.3.0 implementation documentation
+│   ├── reports/                             # Invariant benchmark & verification logs
+│   ├── reviews/                             # Delegated PR reviews & security audits
+│   └── spikes/                              # Research spikes & RFC prototype evaluations
 ├── rules/
 │   └── AGENTS.md                            # Always-on EULIS delegation & subagent policy
 ├── scripts/
@@ -145,8 +150,18 @@ jules-plugin/
 │   └── jules-task-controller/
 │       └── SKILL.md                         # Skill specification (v2.2)
 └── tests/
-    └── test_invariants.sh                   # Automated 21-point invariant test suite
+    └── test_invariants.sh                   # Automated 24-point invariant test suite
 ```
+
+---
+
+## 📚 Deploying Artifacts to `docs/`
+
+All generated outputs across the development lifecycle are version-controlled in `docs/`:
+
+1. **Direct Jules Generation:** Instruct Jules to write directly to `docs/<category>/<file>.md` (e.g. `docs/reviews/review_auth.md`). When verified and merged with `jules-gate merge`, artifacts are integrated automatically.
+2. **Promoting IDE Session Artifacts:** Copy conversation brain artifacts into `docs/` (`cp "$ARTIFACT_PATH" docs/reports/`) and commit.
+3. **Archiving Verification Runs:** Pipe `./tests/test_invariants.sh` into `docs/reports/` to retain an immutable verification history.
 
 ---
 

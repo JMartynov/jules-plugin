@@ -76,6 +76,21 @@ To ensure 100% compatibility across both GNU/Linux and macOS BSD systems:
 - Scripts like `tests/test_invariants.sh` were refactored to use standard inline POSIX tooling instead of relying on GNU-specific flags (`sed`, `awk`, standard bash loops).
 - Resolves previous pathing and symlink resolution discrepancies for `jules-gate` pathing logic on macOS.
 
+## 5. Artifact Deployment & Repository Documentation Taxonomy
+
+All artifacts produced during EULIS delegation and agent orchestration are systematically captured under `docs/`:
+
+```text
+docs/
+├── IMPLEMENTATION.md         # Comprehensive architectural & implementation blueprints
+├── reports/                  # Test invariant runs, token benchmark metrics
+├── reviews/                  # Delegated Jules PR reviews & security audits
+└── spikes/                   # Prototype research notes & RFC evaluations
+```
+
+- **Remote-First Deployment:** When dispatching tasks to Jules, target markdown paths are directly specified in the prompt (`docs/reviews/review_<date>.md`). Upon gated merge (`jules-gate merge`), they become permanent tracked documentation.
+- **IDE Artifact Promotion:** Interactive pair-programming artifacts from `.gemini/antigravity/brain/` can be copied directly to `docs/reports/` or `docs/spikes/` and committed to master.
+
 ---
 
 ## Architecture and Command Table
@@ -87,4 +102,5 @@ To ensure 100% compatibility across both GNU/Linux and macOS BSD systems:
 | **CI Workflow** | `.github/workflows/ci.yml` | Added Ubuntu & macOS automated matrix runner. |
 | **Invariant Suite** | `tests/test_invariants.sh` | Refactored for portable POSIX compliant bash operations. |
 | **Token Monitor** | Architecture Standard | Benchmarked 98.8% token savings via forced delegation. |
+| **Artifact Taxonomy** | `docs/` | Structured taxonomy for reviews, spikes, implementation, and reports. |
 
