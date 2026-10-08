@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # jules_poll_wait.sh - Token-free session watcher for Google Jules (EULIS)
 # Waits for one or more Jules sessions to finish without triggering LLM round-trips.
+# Fully compatible with macOS default Bash 3.2 and modern Bash 4/5.
 
 set -euo pipefail
 
@@ -41,7 +42,8 @@ echo "=========================================================="
 START_TIME=$(date +%s)
 TIMEOUT_SECS=$((TIMEOUT_MINS * 60))
 
-declare -A FINISHED
+COMPLETED_SESSIONS=" "
+FAILED_SESSIONS=" "
 
 while true; do
     ALL_DONE=true
@@ -56,7 +58,8 @@ while true; do
     LIST_OUTPUT=$(jules remote list --session 2>&1 || true)
 
     for SID in "${SESSIONS[@]}"; do
-        if [[ -n "${FINISHED[$SID]:-}" ]]; then
+        # Check if already processed
+        if [[ "$COMPLETED_SESSIONS" == *" $SID "* || "$FAILED_SESSIONS" == *" $SID "* ]]; then
             continue
         fi
 
@@ -69,19 +72,31 @@ while true; do
 
         if echo "$STATUS_LINE" | grep -qi "Completed"; then
             echo "✅ [DONE] Session $SID completed successfully!"
-            FINISHED[$SID]="Completed"
+            COMPLETED_SESSIONS="${COMPLETED_SESSIONS}${SID} "
         elif echo "$STATUS_LINE" | grep -qi "Failed"; then
             echo "❌ [FAILED] Session $SID failed remotely!"
-            FINISHED[$SID]="Failed"
+            FAILED_SESSIONS="${FAILED_SESSIONS}${SID} "
         else
             ALL_DONE=false
+        fi
+    done
+
+    # Check if all sessions have reached a terminal state
+    for SID in "${SESSIONS[@]}"; do
+        if [[ "$COMPLETED_SESSIONS" != *" $SID "* && "$FAILED_SESSIONS" != *" $SID "* ]]; then
+            ALL_DONE=false
+            break
         fi
     done
 
     if $ALL_DONE; then
         echo "🎉 All requested Jules sessions have concluded."
         for SID in "${SESSIONS[@]}"; do
-            echo "  - Session $SID: ${FINISHED[$SID]}"
+            if [[ "$COMPLETED_SESSIONS" == *" $SID "* ]]; then
+                echo "  - Session $SID: Completed"
+            else
+                echo "  - Session $SID: Failed"
+            fi
         done
         break
     fi
@@ -91,7 +106,7 @@ done
 
 # Exit non-zero if any session failed
 for SID in "${SESSIONS[@]}"; do
-    if [[ "${FINISHED[$SID]}" == "Failed" ]]; then
+    if [[ "$FAILED_SESSIONS" == *" $SID "* ]]; then
         exit 2
     fi
 done

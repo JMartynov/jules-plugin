@@ -29,18 +29,20 @@ mkdir -p "$PATCH_DIR"
 
 # 1. Pull remote patch
 echo "==> Pulling patch from Jules session $SESSION_ID..."
-jules remote pull --session "$SESSION_ID" > "$PATCH_FILE" 2>&1 || {
+if ! jules remote pull --session "$SESSION_ID" > "$PATCH_FILE" 2>&1; then
     echo "❌ Failed to pull patch for session $SESSION_ID"
+    rm -rf "$PATCH_FILE"
     exit 1
-}
+fi
 
 if [[ ! -s "$PATCH_FILE" ]]; then
     echo "❌ Patch file is empty. Nothing to verify."
+    rm -rf "$PATCH_FILE"
     exit 1
 fi
 
 echo "Patch summary:"
-git apply --stat "$PATCH_FILE" || head -n 20 "$PATCH_FILE"
+git apply --stat "$PATCH_FILE" 2>/dev/null || head -n 20 "$PATCH_FILE"
 
 # 2. Checkout isolated branch
 echo "==> Creating review branch: $REVIEW_BRANCH from $BASE_BRANCH..."
@@ -48,10 +50,11 @@ git checkout -B "$REVIEW_BRANCH" "$BASE_BRANCH"
 
 # 3. Apply patch
 echo "==> Applying patch..."
-if ! git apply "$PATCH_FILE"; then
+if ! git apply "$PATCH_FILE" 2>/dev/null; then
     echo "❌ Patch did not apply cleanly to $REVIEW_BRANCH"
     git checkout -f "$BASE_BRANCH"
     git branch -D "$REVIEW_BRANCH" 2>/dev/null || true
+    rm -rf "$PATCH_FILE"
     exit 2
 fi
 
@@ -62,11 +65,13 @@ git add -A
 echo "==> Detecting test runner..."
 TEST_CMD=""
 
-if [[ -f "pyproject.toml" || -f "pytest.ini" || -f "setup.py" || -d "tests" && -f "requirements.txt" ]]; then
-    if command -v pytest >/dev/null 2>&1; then
+if [[ -f "pyproject.toml" || -f "pytest.ini" || -f "setup.py" || -d "tests" || -f "requirements.txt" || -n "$(find . -maxdepth 2 -name 'test_*.py' 2>/dev/null | head -n 1)" ]]; then
+    if python3 -m pytest --version >/dev/null 2>&1; then
+        TEST_CMD="python3 -m pytest"
+    elif command -v pytest >/dev/null 2>&1 && pytest --version >/dev/null 2>&1; then
         TEST_CMD="pytest"
     else
-        TEST_CMD="python3 -m unittest"
+        TEST_CMD="python3 -m unittest discover -s . -p 'test_*.py'"
     fi
 elif [[ -f "package.json" ]]; then
     if grep -q '"test":' package.json; then
@@ -90,6 +95,7 @@ if [[ -n "$TEST_CMD" ]]; then
         echo "❌ Tests failed on branch $REVIEW_BRANCH. Reverting changes."
         git checkout -f "$BASE_BRANCH"
         git branch -D "$REVIEW_BRANCH" 2>/dev/null || true
+        rm -rf "$PATCH_FILE"
         exit 3
     fi
 else
@@ -98,6 +104,7 @@ fi
 
 # 5. Commit review branch
 git commit -m "jules($SESSION_ID): verified changes applied from remote session" || true
+rm -rf "$PATCH_FILE"
 
 echo "=========================================================="
 echo "🎉 Verification successful! Review branch '$REVIEW_BRANCH' is ready."
