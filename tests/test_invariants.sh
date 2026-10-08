@@ -161,6 +161,13 @@ else
     log_fail "Efficiency Override documentation missing from SKILL.md or rules/AGENTS.md"
 fi
 
+# Ensure Sub-agent telemetry reporting directive is codified
+if grep -q "tokens --json" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md" && grep -q "tokens --json" "$PLUGIN_ROOT/rules/AGENTS.md"; then
+    log_pass "SKILL.md and rules/AGENTS.md mandate sub-agent telemetry reporting via tokens --json"
+else
+    log_fail "SKILL.md or rules/AGENTS.md missing sub-agent telemetry reporting directive"
+fi
+
 # ------------------------------------------------------------
 # INVARIANT 3: Zero-Token Polling Watcher (jules_poll_wait.sh)
 # ------------------------------------------------------------
@@ -258,6 +265,8 @@ elif [[ "\$*" == *"remote pull --session 302"* ]]; then
     cat "$LOG_DIR/failing_test.patch"
 elif [[ "\$*" == *"remote pull --session 303"* ]]; then
     echo "CORRUPT PATCH GARBAGE"
+elif [[ "\$*" == *"remote pull --session 305"* ]]; then
+    cat "$LOG_DIR/pr_valid.patch"
 fi
 EOF
 chmod +x "$MOCK_DIR/jules"
@@ -345,6 +354,43 @@ if [[ -z "$HAS_BRANCH_AFTER" ]]; then
 else
     log_fail "Review branch jules/review-301 still exists after merge"
 fi
+
+# Verify PR body embeds token efficiency badge
+MOCK_GH_DIR=$(mktemp -d "/tmp/jules-mock-gh-XXXXXX")
+cat > "$MOCK_GH_DIR/gh" << 'EOF'
+#!/usr/bin/env bash
+echo "$*" > "$MOCK_GH_LOG"
+exit 0
+EOF
+chmod +x "$MOCK_GH_DIR/gh"
+
+export MOCK_GH_LOG="$MOCK_GH_DIR/gh_call.txt"
+OLD_GH_PATH="$PATH"
+export PATH="$MOCK_GH_DIR:$PATH"
+
+python3 -c "f = open('calc.py', 'r'); c = f.read(); open('calc.py', 'w').write(c + '\n# PR badge verified addition\n')"
+git diff calc.py > "$LOG_DIR/pr_valid.patch"
+git checkout -f calc.py
+
+BARE_REPO=$(mktemp -d "/tmp/jules-bare-XXXXXX")
+git init --bare "$BARE_REPO" >/dev/null 2>&1
+git remote remove origin 2>/dev/null || true
+git remote add origin "$BARE_REPO"
+git push -u origin main >/dev/null 2>&1
+
+set +e
+"$GATE_BIN" pr 305 main > "$LOG_DIR/pr.log" 2>&1
+PR_EXIT=$?
+set -e
+
+if grep -q "Verified by Jules Gate" "$MOCK_GH_LOG" 2>/dev/null && grep -q "tokens spared" "$MOCK_GH_LOG" 2>/dev/null; then
+    log_pass "jules-gate pr embeds Token Efficiency Badge into PR body"
+else
+    log_fail "jules-gate pr missing Token Efficiency Badge in PR body ($(cat "$LOG_DIR/pr.log" 2>/dev/null))"
+fi
+
+export PATH="$OLD_GH_PATH"
+rm -rf "$MOCK_GH_DIR" "$BARE_REPO"
 
 # ------------------------------------------------------------
 # INVARIANT 6: Multi-Language Runner Detection

@@ -344,7 +344,7 @@ jules-gate merge <session_id> [base_branch] [--delete-remote]
 ```bash
 jules-gate pr <session_id> [base_branch]
 ```
-*Pushes `jules/review-<session_id>` to GitHub and opens a Pull Request via GitHub CLI (`gh`). Because tests already passed in Step 3, the remote GitHub Actions CI run will succeed without burning wasted runner hours.*
+*Pushes `jules/review-<session_id>` to GitHub and opens a Pull Request via GitHub CLI (`gh`). Automatically calculates review diff metrics and embeds the **Token Efficiency Badge** (e.g. `⚡ Verified by Jules Gate: ~38,500 tokens spared`) into the PR description. Because tests already passed in Step 3, the remote GitHub Actions CI run will succeed without burning wasted runner hours.*
 
 ---
 

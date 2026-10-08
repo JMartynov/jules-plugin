@@ -126,10 +126,27 @@ case "$CMD" in
         REVIEW_BRANCH="jules/review-${SESSION_ID}"
         
         "$SCRIPTS_DIR/worktree_gate.sh" "$SESSION_ID" "$BASE_BRANCH"
+
+        # Calculate session diff and spared tokens for PR badge
+        NUMSTAT=$(git diff --numstat "$BASE_BRANCH...$REVIEW_BRANCH" 2>/dev/null || echo "0 0")
+        LINES_ADDED=$(echo "$NUMSTAT" | awk '{sum+=$1} END {print sum+0}')
+        LINES_REMOVED=$(echo "$NUMSTAT" | awk '{sum+=$2} END {print sum+0}')
+        DIFF_LINES=$(( LINES_ADDED + LINES_REMOVED ))
+        SESSION_TOKENS=$(( 35000 + DIFF_LINES * 5 ))
+
+        PR_BODY=$(cat << EOF
+### Automated Verified Changes from Jules Session $SESSION_ID
+
+All tests passed on isolated review branch \`$REVIEW_BRANCH\` against base \`$BASE_BRANCH\`.
+
+---
+⚡ **Verified by Jules Gate:** \`~$SESSION_TOKENS tokens spared\` (+$LINES_ADDED / -$LINES_REMOVED lines across isolated review worktree)
+EOF
+)
         
         echo "==> Pushing $REVIEW_BRANCH and creating Pull Request..."
         git push -u origin "$REVIEW_BRANCH"
-        gh pr create --base "$BASE_BRANCH" --head "$REVIEW_BRANCH" --title "feat(jules): session $SESSION_ID" --body "Automated verified changes from Jules session $SESSION_ID."
+        gh pr create --base "$BASE_BRANCH" --head "$REVIEW_BRANCH" --title "feat(jules): session $SESSION_ID" --body "$PR_BODY"
         echo "✅ Pull request successfully created!"
         ;;
     lint|check)

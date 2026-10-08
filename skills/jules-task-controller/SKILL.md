@@ -206,7 +206,7 @@ When orchestrating any Jules task or verification suite:
 When the user requests broad codebase exploration or workflow inspection, spawn a research sub-agent (Model: `flash`) to explore files and return a concise synthesis. This keeps the primary Pro context under 10k tokens.
 
 ### Post-Verification Reporting Delegation:
-Instruct Tier 2 Analytic Verifier sub-agents (Model: `flash`) to generate and commit markdown reports directly under `docs/reports/` before returning their final summary.
+Instruct Tier 2 Analytic Verifier sub-agents (Model: `flash`) to run `jules-gate tokens --json` to capture session token savings and commit structured markdown reports directly under `docs/reports/` before returning their final summary.
 
 ### Invocation Parameters:
 
@@ -234,7 +234,7 @@ Instruct Tier 2 Analytic Verifier sub-agents (Model: `flash`) to generate and co
       "Model": "flash",
       "Workspace": "inherit",
       "Role": "Analytic Verifier",
-      "Prompt": "Execute the following verification lifecycle:\n1. jules-gate verify <session_id>\n2. If tests pass, jules-gate merge <session_id>\n3. Send a single structured summary to the parent agent upon completion."
+      "Prompt": "Execute the following verification lifecycle:\n1. jules-gate verify <session_id>\n2. If tests pass, jules-gate merge <session_id>\n3. Run jules-gate tokens --json and write docs/reports/verification_<session_id>.md with test results & token metrics.\n4. Send a single structured summary to the parent agent upon completion."
     }
   ]
 }
@@ -259,7 +259,7 @@ jules-gate merge <session_id> [base_branch]
 ```bash
 jules-gate pr <session_id> [base_branch]
 ```
-*Pushes the review branch to GitHub and opens a Pull Request using `gh pr create`. Guarantees green remote CI runs because local test gates already verified the diff.*
+*Pushes the review branch to GitHub and opens a Pull Request using `gh pr create`. Automatically embeds the **Token Efficiency Badge** (spared tokens and diff line counts) into the PR description and guarantees green CI runs.*
 
 ---
 

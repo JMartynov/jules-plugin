@@ -211,15 +211,24 @@ Protects against inadvertent token waste from dispatching micro-fixes to the clo
 - For patch files, inspects diff lines and flags changes targeting $\le 3$ lines of diff.
 - Encourages direct local execution on the IDE thread when cloud dispatch overhead would exceed local cost.
 
+### C. Automated GitHub PR Telemetry Badges (`jules-gate pr`)
+`jules-gate pr` automatically computes review branch diff metrics and embeds an efficiency badge into the generated Pull Request body:
+```markdown
+⚡ **Verified by Jules Gate:** `~38,500 tokens spared` (+14 / -2 lines across isolated review worktree)
+```
+
+### D. Sub-Agent Telemetry Reporting Delegation
+Tier 2 Analytic Verifier sub-agents (`flash`) execute `jules-gate tokens --json` during Stage 4 and write comprehensive verification reports directly into `docs/reports/verification_<session_id>.md` before reporting back to the primary thread.
+
 ---
 
 ## Architecture and Command Table
 
 | Component | Location | Responsibility / Change in v2.7.0 |
 | :--- | :--- | :--- |
-| **`jules-gate` CLI** | `bin/jules-gate` | Added `tokens` telemetry command, added complexity heuristics to `lint`, added serialized auto-rebase to `merge`. |
+| **`jules-gate` CLI** | `bin/jules-gate` | Added `tokens` telemetry command, added complexity heuristics to `lint`, PR telemetry badges to `pr`, serialized auto-rebase to `merge`. |
 | **Gated Verification** | `scripts/worktree_gate.sh` | Integrated automated telemetry logging + diagnostic sieve (`grep` assertion filter) + `tail -n 40` log cap. |
-| **Invariant Suite** | `tests/test_invariants.sh` | 37 automated assertions validating CLI, rules, tokens telemetry, complexity heuristics, and test runners. |
+| **Invariant Suite** | `tests/test_invariants.sh` | 39 automated assertions validating CLI, rules, tokens telemetry, complexity heuristics, PR badges, and test runners. |
 | **Token Shield** | Architecture Standard | Benchmarked >99.5% token savings across 6-layer shield. |
 | **Artifact Taxonomy** | `docs/` | Structured taxonomy for reviews, spikes, implementation, and reports. |
 

@@ -29,7 +29,7 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
    * **Stage 1: Pre-Dispatch Research (`flash`):** For broad codebase exploration or workflow inspection, spawn a research sub-agent to explore files and return a concise synthesis.
    * **Stage 2: Cognitive Architecture (`pro`):** Exclusively for Step 0 triage, contract-first prompt formulation, and escalated merge conflicts. The primary Pro agent must NEVER run shell commands, polling loops, or test runners directly.
    * **Stage 3: Mechanical Execution (`flash_lite`):** Pure shell dispatch (`jules remote new`), zero-token polling (`jules-gate wait`), and git branch merges. Use for rote CLI operations.
-   * **Stage 4: Analytic Verification & Reporting (`flash`):** Gated testing (`jules-gate verify`), test runner triage, lightweight patch hotfixes, and generating/committing markdown reports directly under `docs/reports/` before returning the final summary.
+   * **Stage 4: Analytic Verification & Reporting (`flash`):** Gated testing (`jules-gate verify`), test runner triage, lightweight patch hotfixes, capturing token savings via `jules-gate tokens --json`, and generating/committing markdown reports directly under `docs/reports/` before returning the final summary.
    * The sub-agent executes in its own ephemeral context, absorbing all polling and test output tokens.
    * The primary agent must remain idle with zero tool calls until the sub-agent completes and reports back.
 
