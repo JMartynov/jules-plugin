@@ -121,6 +121,13 @@ else
     log_fail "skills/jules-task-controller/SKILL.md missing Research sub-agent pattern"
 fi
 
+# Ensure Token-Sparing Forking statement is codified
+if grep -q -i "forking" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md"; then
+    log_pass "skills/jules-task-controller/SKILL.md documents token-sparing forking architecture"
+else
+    log_fail "skills/jules-task-controller/SKILL.md missing token-sparing forking documentation"
+fi
+
 # ------------------------------------------------------------
 # INVARIANT 3: Zero-Token Polling Watcher (jules_poll_wait.sh)
 # ------------------------------------------------------------

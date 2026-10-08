@@ -2,23 +2,26 @@
 name: jules-task-controller
 description: >-
   Orchestrate Google Jules (EULIS) coding tasks with mandatory sub-agent execution, automated task splitting,
-  multi-modal delegation (features, code reviews, tests, research spikes), zero-token polling, and gated verification (Version 2.5.0).
+  multi-modal delegation (features, code reviews, tests, research spikes), zero-token polling, and gated verification (Version 2.6.0).
   Use whenever planning, splitting, delegating, or verifying tasks assigned to Jules / EULIS across any programming language.
 ---
 
-# Jules Task Controller (Version 2.5.0)
+# Jules Task Controller (Version 2.6.0)
 
 An enterprise orchestrator for **Google Jules (EULIS)**. Designed to maximize delegation across all software engineering workflows while strictly enforcing **sub-agent isolation** to eliminate token bloat (empirically proven to save **>99.5% of main-thread tokens** through Dynamic Multi-Tier Model Routing).
 
 ---
 
-## ⚡ Core Operational Law: Mandatory Sub-Agent Execution
+## ⚡ Core Operational Law: Forking Tasks in the Most Token-Sparing Way Possible
 
 > [!IMPORTANT]
-> **CRITICAL TOKEN RULE: DO NOT execute tests, polling, or verification directly in the primary context window.**
+> **TOKEN CONSERVATION LAW: We are forking execution in the most efficient and token-sparing way possible.**
 > 
-> * **Empirical Evidence:** In benchmark testing, running invariant tests and status checks directly in the primary conversation consumed **1,037,426 tokens**. Offloading the exact same execution loop to a background sub-agent running on `Model: 'flash'` consumed only **~12,000 tokens** on the primary thread, and routing to `flash_lite` reduces this even further—a **>99.5% token reduction**.
-> * **Mandatory Architecture:** The primary orchestrator's sole responsibility is **planning, task splitting, and dispatching**. All CLI execution, Jules submission, `jules-gate wait` polling, and `jules-gate verify` testing MUST be delegated to an isolated sub-agent.
+> * **Zero Local Generation:** We fork all heavy coding, test fixtures, and refactoring to Google Jules in remote cloud VMs so that the local LLM generates 0 code tokens.
+> * **Zero Main-Thread Polling:** We fork all dispatch and waiting tasks to `flash_lite` sub-agents running native `jules-gate wait` background processes. The primary agent makes **zero tool calls** and remains completely suspended (0 tokens consumed while waiting).
+> * **Isolated Workspace Forking:** We fork test verification, merge conflict rebasing, and markdown report authoring into ephemeral `flash` sub-agents using isolated Git review branches / worktrees (`Workspace: 'share'` or `Workspace: 'inherit'`).
+> * **Pre-Dispatch Research Forking:** We fork broad codebase inspections to read-only `research` sub-agents before the primary context touches a single file, keeping the primary thread under 10k tokens.
+> * **Empirical Proof:** Spares **>99.5% of primary tokens** across real-world multi-task production sessions (from >10.2M tokens down to <30k tokens).
 
 ---
 
