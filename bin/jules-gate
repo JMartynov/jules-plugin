@@ -70,6 +70,13 @@ case "$CMD" in
             esac
         done
         BASE_BRANCH="${BASE_BRANCH:-$(git branch --show-current 2>/dev/null || echo 'main')}"
+        if ! git rev-parse --verify "$BASE_BRANCH" >/dev/null 2>&1; then
+            if [[ "$BASE_BRANCH" == "main" ]] && git rev-parse --verify "master" >/dev/null 2>&1; then
+                BASE_BRANCH="master"
+            elif [[ "$BASE_BRANCH" == "master" ]] && git rev-parse --verify "main" >/dev/null 2>&1; then
+                BASE_BRANCH="main"
+            fi
+        fi
         REVIEW_BRANCH="jules/review-${SESSION_ID}"
         
         "$SCRIPTS_DIR/worktree_gate.sh" "$SESSION_ID" "$BASE_BRANCH"
@@ -87,6 +94,13 @@ case "$CMD" in
     pr)
         SESSION_ID="$1"
         BASE_BRANCH="${2:-$(git branch --show-current 2>/dev/null || echo 'main')}"
+        if ! git rev-parse --verify "$BASE_BRANCH" >/dev/null 2>&1; then
+            if [[ "$BASE_BRANCH" == "main" ]] && git rev-parse --verify "master" >/dev/null 2>&1; then
+                BASE_BRANCH="master"
+            elif [[ "$BASE_BRANCH" == "master" ]] && git rev-parse --verify "main" >/dev/null 2>&1; then
+                BASE_BRANCH="main"
+            fi
+        fi
         REVIEW_BRANCH="jules/review-${SESSION_ID}"
         
         "$SCRIPTS_DIR/worktree_gate.sh" "$SESSION_ID" "$BASE_BRANCH"

@@ -15,6 +15,13 @@ fi
 
 SESSION_ID="$1"
 BASE_BRANCH="${2:-$(git branch --show-current 2>/dev/null || echo 'main')}"
+if ! git rev-parse --verify "$BASE_BRANCH" >/dev/null 2>&1; then
+    if [[ "$BASE_BRANCH" == "main" ]] && git rev-parse --verify "master" >/dev/null 2>&1; then
+        BASE_BRANCH="master"
+    elif [[ "$BASE_BRANCH" == "master" ]] && git rev-parse --verify "main" >/dev/null 2>&1; then
+        BASE_BRANCH="main"
+    fi
+fi
 REVIEW_BRANCH="jules/review-${SESSION_ID}"
 PATCH_DIR=".jules/patches"
 PATCH_FILE="${PATCH_DIR}/${SESSION_ID}.patch"
@@ -65,7 +72,7 @@ git add -A
 echo "==> Detecting test runner..."
 TEST_CMD=""
 
-if [[ -f "pyproject.toml" || -f "pytest.ini" || -f "setup.py" || -d "tests" || -f "requirements.txt" || -n "$(find . -maxdepth 2 -name 'test_*.py' 2>/dev/null | head -n 1)" ]]; then
+if [[ -f "pyproject.toml" || -f "pytest.ini" || -f "setup.py" || -f "requirements.txt" || -n "$(find . -maxdepth 2 -name 'test_*.py' 2>/dev/null | head -n 1)" || (-d "tests" && -n "$(find tests -name '*.py' 2>/dev/null | head -n 1)") ]]; then
     if python3 -m pytest --version >/dev/null 2>&1; then
         TEST_CMD="python3 -m pytest"
     elif command -v pytest >/dev/null 2>&1 && pytest --version >/dev/null 2>&1; then
