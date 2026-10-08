@@ -128,6 +128,13 @@ else
     log_fail "skills/jules-task-controller/SKILL.md missing token-sparing forking documentation"
 fi
 
+# Ensure Efficiency Override / Local Option is codified
+if grep -q -i "Efficiency Override" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md" && grep -q -i "Efficiency Override" "$PLUGIN_ROOT/rules/AGENTS.md"; then
+    log_pass "SKILL.md and rules/AGENTS.md document Efficiency Override (Local Option)"
+else
+    log_fail "Efficiency Override documentation missing from SKILL.md or rules/AGENTS.md"
+fi
+
 # ------------------------------------------------------------
 # INVARIANT 3: Zero-Token Polling Watcher (jules_poll_wait.sh)
 # ------------------------------------------------------------

@@ -11,10 +11,11 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
 
 2. **Automated Triage & Task Separation (Run on Every Task)**  
    Before writing extensive local code or launching an autonomous local loop, run the **4-Point Triage**:
-   * **Full Delegation:** If the task is self-contained (parsers, algorithms, isolated features, unit tests, doc generation) ➔ Dispatch directly to Jules via Sub-Agent.
+   * **Full Delegation:** If the task is self-contained (parsers, algorithms, isolated features, unit tests, doc generation) ➔ Dispatch directly to Jules via Sub-Agent. Maximize delegation whenever token-efficient.
    * **Partial Delegation (Task Split):** If the task has local dependencies (local Docker, localhost DB, uncommitted `.env` secrets) ➔ **Automatically split the task**:
      * **Component A (Jules):** Pure domain logic, algorithms, abstract interfaces, and mock unit tests (dispatched to Jules via Sub-Agent).
      * **Component B (Local):** Local secret injection, DB connection pool wiring, and environment configuration.
+   * **Efficiency Override (Local Option):** If delegating becomes inefficient and is expected to consume more tokens in orchestration/dispatch overhead than a direct local edit (e.g., trivial 1-line syntax/import fixes, single version bumps, quick regex tweaks) ➔ Choose local execution on the IDE thread.
    * **Non-Delegatable:** If the task strictly requires interactive local debugging, local hardware, or ad-hoc uncommitted file forensics ➔ Implement locally on the IDE thread.
 
 3. **Multi-Modal Delegation Modes:**  

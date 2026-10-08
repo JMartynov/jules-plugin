@@ -18,6 +18,7 @@ An enterprise orchestrator for **Google Jules (EULIS)**. Designed to maximize de
 > **TOKEN CONSERVATION LAW: We are forking execution in the most efficient and token-sparing way possible.**
 > 
 > * **Zero Local Generation:** We fork all heavy coding, test fixtures, and refactoring to Google Jules in remote cloud VMs so that the local LLM generates 0 code tokens.
+> * **Dynamic Efficiency Threshold (Economic Local Override):** We delegate to Jules as much as possible to eliminate code generation tokens. However, if delegating becomes inefficient and we expect more tokens in orchestration/dispatch overhead than a direct local execution (such as a 1-line syntax/import fix, single version bump, or quick regex tweak), we choose the local option.
 > * **Zero Main-Thread Polling:** We fork all dispatch and waiting tasks to `flash_lite` sub-agents running native `jules-gate wait` background processes. The primary agent makes **zero tool calls** and remains completely suspended (0 tokens consumed while waiting).
 > * **Isolated Workspace Forking:** We fork test verification, merge conflict rebasing, and markdown report authoring into ephemeral `flash` sub-agents using isolated Git review branches / worktrees (`Workspace: 'share'` or `Workspace: 'inherit'`).
 > * **Pre-Dispatch Research Forking:** We fork broad codebase inspections to read-only `research` sub-agents before the primary context touches a single file, keeping the primary thread under 10k tokens.
@@ -50,7 +51,8 @@ To maximize token efficiency (<0.8% relative compute cost), the system employs a
 | `jules-gate status` | Checks health of plugin, CLI, and scripts | **Immediate environment diagnostic** |
 
 ### Step 0 Triage Rules:
-* 🟢 **Delegate to Jules:** Standalone modules, algorithms, parsers, test suites, refactoring, code reviews, research spikes.
+* 🟢 **Maximize Delegation to Jules:** Default to delegating as much as possible—standalone modules, algorithms, parsers, test suites, refactoring, code reviews, research spikes.
+* ⚡ **Efficiency Override (Local Option):** If delegating becomes inefficient and we expect more tokens than local execution (e.g. trivial 1-line syntax/import fixes, single version bumps, quick regex adjustments), choose local execution directly on the IDE thread.
 * 🔴 **Keep on Local Agent:** Local Docker daemons, localhost DBs (Mongo/Postgres), uncommitted `.env` secrets, massive local file forensics.
 * 🟡 **Split the Task:** Isolate domain logic for Jules; wire local secrets/DB connections locally.
 

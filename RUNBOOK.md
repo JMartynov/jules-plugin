@@ -162,7 +162,12 @@ git status -s
 
 ## 4. Step 0: Delegation Feasibility Triage & Task Splitting
 
-Not every task should be sent to a remote cloud VM. Run every incoming requirement through this 4-point feasibility matrix:
+We delegate to Google Jules as much as possible to offload code generation and test execution. However, not every task should be sent to a remote cloud VM. Run every incoming requirement through this 4-point feasibility matrix:
+
+* **Dynamic Efficiency Threshold (Local Execution Override):** Assess whether remote cloud VM dispatch is economically justified. If delegating becomes inefficient and is expected to consume more tokens in orchestration/dispatch overhead than a direct local edit (e.g. trivial 1-line syntax/import fixes, single version bumps, quick regex adjustments), implement directly on the local IDE thread.
+* **Full Delegation:** Standalone modules, algorithms, parsers, test suites, refactoring, code reviews, research spikes.
+* **Partial Delegation (Task Splitting):** Decouple remote domain logic from local secrets/DBs.
+* **Non-Delegatable:** Strict local hardware, local Docker daemons, or uncommitted ad-hoc forensics.
 
 ```
                             [ Incoming Task ]

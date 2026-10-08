@@ -17,6 +17,9 @@ The v2.6.0 architecture evolves the system into an enterprise **4-stage multi-ti
 | 4-Stage Lifecycle (v2.5.0) | <15,000 tokens | Pre-dispatch research + strict no-polling rules. |
 | Full 6-Layer Shield (v2.6.0) | <10,000 tokens | Serialized auto-rebase, pre-dispatch linter, strict primary sweep ban. |
 
+### Dynamic Efficiency Threshold (Local Execution Override)
+The core philosophy is to maximize delegation to Jules to offload heavy code generation, refactoring, and test synthesis. However, if delegating a task introduces disproportionate orchestration overhead (such as 1-line syntax/import fixes, single version bumps, or quick path adjustments) where cloud VM dispatch and sub-agent coordination consume MORE tokens than a direct local edit, the orchestrator overrides delegation and executes locally on the IDE thread.
+
 ### The Sub-Agent Polling Tax Case Study
 In prior audits, we found that even when delegating to sub-agents, if a sub-agent attempted to aggressively poll (`jules-gate ps` or `manage_task`) in a tight schedule loop during a background `jules-gate wait`, it could still burn up to **945k tokens**. By introducing a **Strict No-Polling Directive**, once a sub-agent invokes `jules-gate wait`, it must stop calling tools and simply wait to be awoken by the IDE. This prevents the "Polling Tax".
 
@@ -200,7 +203,7 @@ In `scripts/worktree_gate.sh`, failure output is parsed with an assertion sieve:
 | :--- | :--- | :--- |
 | **`jules-gate` CLI** | `bin/jules-gate` | Added `lint` pre-flight command, added serialized auto-rebase to `merge`, added `ps` session viewer. |
 | **Gated Verification** | `scripts/worktree_gate.sh` | Integrated diagnostic sieve (`grep` assertion filter) + `tail -n 40` log cap. |
-| **Invariant Suite** | `tests/test_invariants.sh` | 31 automated assertions validating CLI, rules, no-polling directives, and test runners. |
+| **Invariant Suite** | `tests/test_invariants.sh` | 33 automated assertions validating CLI, rules, efficiency overrides, no-polling directives, and test runners. |
 | **Token Shield** | Architecture Standard | Benchmarked >99.5% token savings across 6-layer shield. |
 | **Artifact Taxonomy** | `docs/` | Structured taxonomy for reviews, spikes, implementation, and reports. |
 

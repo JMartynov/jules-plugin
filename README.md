@@ -48,6 +48,10 @@ The Jules Task Controller is explicitly directed to eliminate token waste throug
 
 ## 🎯 The Core Philosophy: Maximize Delegation
 
+> [!TIP]
+> **Dynamic Efficiency Override (Local Option):**
+> We delegate to Jules as much as possible to offload code generation and test execution. However, if delegating becomes inefficient and is expected to consume more tokens in orchestration and dispatch overhead than a direct local edit (such as a 1-line syntax/import fix, single version bump, or quick regex tweak), we choose the local option directly on the IDE thread.
+
 ```mermaid
 sequenceDiagram
     participant Pro as Cognitive Architect (Pro)
