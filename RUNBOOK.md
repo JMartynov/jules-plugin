@@ -1,6 +1,6 @@
 # Jules Task Controller: Operational Runbook
 
-**Version:** 2.5.0  
+**Version:** 2.6.0  
 **Target Audience:** Software Engineers, DevOps, Autonomous AI Agents (Antigravity / Gemini IDE, Claude Code, Cursor, JetBrains, VS Code)  
 **System Repository:** [`https://github.com/JMartynov/jules-plugin`](https://github.com/JMartynov/jules-plugin)
 
@@ -8,7 +8,7 @@
 
 ## 📑 Table of Contents
 1. [Architecture & Workflow Overview](#1-architecture--workflow-overview)
-2. [Mandatory Sub-Agent Isolation (>99.5% Token Savings)](#2-mandatory-sub-agent-isolation-995-token-savings)
+2. [The 6-Layer Token Sparing Architecture (>99.5% Token Savings)](#2-the-6-layer-token-sparing-architecture-995-token-savings)
 3. [Pre-flight Checklist & Environment Setup](#3-pre-flight-checklist--environment-setup)
 4. [Step 0: Delegation Feasibility Triage & Task Splitting](#4-step-0-delegation-feasibility-triage--task-splitting)
 5. [Multi-Modal Delegation Playbooks (Code, Review, Spikes, Fuzzing)](#5-multi-modal-delegation-playbooks-code-review-spikes-fuzzing)
@@ -18,6 +18,7 @@
 9. [Step 4: Integration Decisions (Merge vs. PR)](#9-step-4-integration-decisions-merge-vs-pr)
 10. [Parallel Execution & Merge Conflict Playbook](#10-parallel-execution--merge-conflict-playbook)
 11. [Troubleshooting & Failure Modes](#11-troubleshooting--failure-modes)
+12. [Pre-Dispatch Contract Linter & Serialized Auto-Rebase](#12-pre-dispatch-contract-linter--serialized-auto-rebase)
 
 ---
 
@@ -55,19 +56,47 @@ sequenceDiagram
 
 ---
 
-## 2. Mandatory Sub-Agent Isolation (>99.5% Token Savings)
+## 2. The 6-Layer Token Sparing Architecture (>99.5% Token Savings)
 
 > [!IMPORTANT]
-> **Empirical Law:** Never execute Jules CLI dispatch, test execution loops, or status checks directly on the primary conversation thread.
+> **Empirical Operational Law:** Eliminate token waste across every phase of software development. Never run local file sweeps, cloud polling, test suites, or git merges directly on the primary Pro context.
 
-### Empirical Benchmarks:
-* **Primary Thread Execution:** Polling 20 times in a 100k context burned **~1,000,000 tokens**.
-* **Uniform Flash Execution (v2.3):** Delegating the exact same lifecycle to a background sub-agent running on `Model: 'flash'` consumed **~150,000 tokens**.
-* **Tiered Routing Execution (v2.4):** Using `flash_lite` mechanical runner + `flash` verifier consumes **~25,000 tokens**—a **>99.5% token reduction**.
-* **4-Stage Lifecycle (v2.5.0):** Pre-dispatch research + strict no-polling rules consumes **<15,000 tokens**.
+### The 6 Layers of the Token Shield:
 
-### The Sub-Agent Polling Tax Case Study
-In prior audits, we found that even when delegating to sub-agents, if a sub-agent attempted to aggressively poll (`jules-gate ps` or `manage_task`) in a tight schedule loop during a background `jules-gate wait`, it could still burn up to **945k tokens**. By introducing a **Strict No-Polling Directive**, once a sub-agent invokes `jules-gate wait`, it must stop calling tools and simply wait to be awoken by the IDE. This prevents the "Polling Tax".
+1. **Layer 1: Zero Local Code Generation (Cloud VM Offloading)**
+   * Instead of generating hundreds of lines of code, fixtures, or unit tests locally in chat (costing 20,000–50,000 output tokens per turn), tasks are offloaded to Google Jules running in isolated Google Cloud VMs.
+   * Local context only receives a compact Git patch upon completion.
+
+2. **Layer 2: Zero-Token OS Polling (`jules-gate wait`)**
+   * Active polling in an LLM conversation loop (running `sleep` or `schedule` repeatedly over a 100k context window) burns massive tokens: 147 polling loops burned **>7M tokens** in session `fa8e45b5`, and 42 loops burned **945k tokens** in `fe4aa44b`.
+   * `jules-gate wait` executes as an asynchronous native OS process. The LLM halts tool calls and is completely suspended (**0 tokens consumed while waiting**). The IDE reactively wakes the LLM only upon task exit.
+
+3. **Layer 3: Pre-Dispatch Research Shield (Sub-Agent `Model: 'flash'`)**
+   * When asked to "inspect", "explore", or "investigate" a repository, the primary Pro agent does NOT read 30+ files locally (which burned 238k tokens in `fe4aa44b`).
+   * An ephemeral `research` subagent (`flash`) sweeps the files and returns a concise synthesis (<500 words), keeping primary context **under 10,000 tokens**.
+
+4. **Layer 4: Multi-Tier Sub-Agent Context Firewalls (`flash_lite` & `flash`)**
+   * Rote CLI operations run on `flash_lite` (~1x cost); test execution, rebase conflicts, and git merges run on `flash` (~3x cost).
+   * The primary `pro` agent (~15–20x cost) makes **zero tool calls** during execution. All compiler logs, diffs, and test outputs remain sealed inside the throwaway sub-agent context.
+
+5. **Layer 5: Diagnostic Sieve & `tail -n 40` Log Cap**
+   * When unit tests fail in large projects, test runners often dump 2,000+ lines of stack traces.
+   * `worktree_gate.sh` filters output with an assertion sieve (`grep -E "^(FAILED|ERROR|FAIL:)"`) and caps the log with `tail -n 40`, reducing log bloat by >95%.
+
+6. **Layer 6: Serialized Auto-Rebase & Pre-Dispatch Contract Linter**
+   * `jules-gate lint` catches typos, invalid repo connections, and unbounded prompt specs *before* dispatching.
+   * `jules-gate merge` automatically detects when the base branch has advanced, rebasing parallel review branches sequentially to prevent semantic regressions, broken CI builds, and circular retry loops.
+
+### Empirical Benchmarks Across Sessions:
+| Session / Mode | Primary Input Tokens | Polling Loops | Context Health |
+| :--- | :--- | :--- | :--- |
+| **Session `fa8e45b5` (Monolithic Polling)** | 10,253,239 tokens | 147 active loops | Severe context bloat |
+| **Session `fe4aa44b` (2-Tier Sub-Agents)** | 2,516,424 tokens | 0 main loops (42 in subagent 1) | 75.5% token reduction |
+| **Wave 2 in `fe4aa44b` (Silent Sub-Agent)** | 74,497 tokens | 0 loops (Silent wait) | **92.1% subagent token savings** |
+| **Target Architecture (v2.6.0)** | **< 30,000 tokens** | **0 loops across all tiers** | **>99.5% token insulation** |
+
+### The Sub-Agent Polling Tax Prevention:
+Sub-agents (especially `flash_lite`) must **NEVER** invoke `schedule` or poll with `manage_task` or `jules-gate ps` in an LLM loop. Once `jules-gate wait` is launched in the background, stop calling tools immediately.
 
 ### Pre-Dispatch Research Sub-Agent Pattern:
 When the user requests broad codebase exploration or workflow inspection, spawn a research sub-agent (Model: `flash`) to explore files and return a concise synthesis. This keeps the primary Pro context under 10k tokens.
@@ -420,3 +449,31 @@ main branch ───┤
   git checkout -b jules/review-<id> main
   git apply --3way .jules/patches/<id>.patch
   ```
+
+---
+
+## 12. Pre-Dispatch Contract Linter & Serialized Auto-Rebase
+
+### 1. Pre-Dispatch Contract Linter (`jules-gate lint`)
+Before dispatching a task to Google Jules, run the contract linter to verify that the environment, target repository, and prompt contract are fully configured:
+
+```bash
+jules-gate lint <owner/repo> [path/to/prompt_spec.md]
+```
+
+**Diagnostic Checks Performed:**
+* **Jules CLI Availability:** Checks that `/opt/homebrew/bin/jules` or system `jules` binary is installed and executable.
+* **Connected Repository Validation:** Queries `jules remote list --repo` to confirm that the target repository is actively connected and authorized.
+* **Contract Specification Bounds:** Inspects the prompt file to confirm that specific target file paths and acceptance test criteria are defined.
+* **Test Runner Detection:** Detects project test suites (`pytest`, `npm test`, `cargo test`, `go test`) to ensure automated gating will succeed upon patch arrival.
+
+### 2. Serialized Auto-Rebase Engine (`jules-gate merge`)
+When running parallel waves of Jules tasks (e.g. Tasks 1, 2, 3), merging them sequentially often causes subsequent branches to become out of date relative to `main`.
+
+`jules-gate merge` automatically performs serialized rebasing:
+```bash
+jules-gate merge <session_id> [base_branch] [--no-rebase] [--delete-remote]
+```
+* **Auto-Detection:** Automatically compares `git merge-base` between `jules/review-<id>` and `base_branch`. If `base_branch` has advanced, it rebases the review branch onto `base_branch`.
+* **Conflict Prevention:** If a semantic or textual conflict occurs during rebase, it safely aborts (`git rebase --abort`) and alerts with exit code 4, preventing corrupt merges.
+* **Automated Cleanup:** With `--delete-remote`, it automatically deletes the tracking branch on origin once merged cleanly.

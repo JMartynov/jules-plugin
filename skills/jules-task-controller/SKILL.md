@@ -53,6 +53,37 @@ To maximize token efficiency (<0.8% relative compute cost), the system employs a
 
 ---
 
+## 💰 The 6-Layer Token Sparing Architecture: How Exactly Tokens Are Saved
+
+This toolset is engineered with a single primary directive: **eliminate LLM token waste across the entire software development lifecycle**. Here is how each layer operates:
+
+1. **Layer 1: Zero Local Code Generation (Cloud VM Offloading)**
+   * Instead of the local agent generating thousands of lines of boilerplate, algorithms, or unit tests in chat (burning 20k–50k output tokens per turn), tasks are dispatched to Google Jules in dedicated cloud VMs.
+   * The local environment only pulls a compact git patch upon completion.
+
+2. **Layer 2: Zero-Token OS Background Polling (`jules-gate wait`)**
+   * Active polling in an LLM conversation loop (e.g. running `sleep(30s)` or `schedule` repeatedly over a 100k context window) burns massive tokens: 147 polling loops burned >7M tokens in session `fa8e45b5`, and 42 loops burned 945k tokens in `fe4aa44b`.
+   * `jules-gate wait` runs as an asynchronous native OS terminal process. The LLM process stops calling tools and is completely suspended (consuming **0 input/output tokens while waiting**). The OS wakes the LLM automatically upon task conclusion.
+
+3. **Layer 3: Pre-Dispatch Research Delegation (Sub-Agent `Model: 'flash'`)**
+   * When a user asks to "inspect", "explore", or "investigate" a repository or workflow, the primary Pro agent does NOT read 30+ files locally (which burned 238k tokens in `fe4aa44b`).
+   * A disposable `research` subagent (`flash`) explores the codebase and returns a single concise synthesis (<500 words), keeping the primary context under 10k tokens.
+
+4. **Layer 4: Multi-Tier Sub-Agent Context Firewalls (`flash_lite` & `flash`)**
+   * Rote CLI commands (`jules remote new`, git checkout) run on `flash_lite` (~1x cost).
+   * Test runs, git worktree gating, and merge conflict resolution run in an ephemeral `flash` subagent (~3x cost).
+   * The primary `pro` agent (~15–20x cost) makes **0 tool calls** during execution. All test outputs, diffs, and debugging logs remain sealed inside the throwaway sub-agent context.
+
+5. **Layer 5: Test Failure Diagnostics Sieve & `tail -n 40` Cap**
+   * When unit tests fail in large projects, test runners often dump 2,000+ lines of stack traces and stdout into the terminal.
+   * `worktree_gate.sh` filters output with an assertion sieve (`grep -E "^(FAILED|ERROR|FAIL:)"`) and caps the output with `tail -n 40`, reducing log bloat by 95%.
+
+6. **Layer 6: Serialized Auto-Rebase & Pre-Dispatch Contract Linter**
+   * `jules-gate lint` verifies repo connections and prompt bounds *before* cloud dispatch, eliminating failed runs.
+   * `jules-gate merge` automatically detects when target branches have advanced, rebasing parallel review branches sequentially to avoid circular retry loops and merge hallucinations.
+
+---
+
 ## 1. Automated Task Separation & Splitting Engine
 
 When an incoming user request contains both delegatable logic and local infrastructure dependencies, automatically split the task:

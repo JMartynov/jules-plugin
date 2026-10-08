@@ -29,15 +29,20 @@ An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Design
 * **Strict Primary-Context Exploration & Board Ban:** Enforced operational rule prohibiting multi-file local sweeps and board enrichments on the primary `pro` context, mandating sub-agent execution.
 * **Universal IDE Onboarding:** Streamlined one-step onboarding across Antigravity, VS Code, JetBrains, Cursor, and Terminal.
 
-## 🌟 What's New in Version 2.4.0
+---
 
-* **Dynamic Multi-Tier Model Routing:** Introduced 3-tier routing (`flash_lite` mechanical worker, `flash` analytic verifier, `pro` cognitive architect) sparing >99.5% tokens.
-* **`jules-gate ps` Command:** Native way to query running, completed, and failed cloud sessions directly through the wrapper.
-* **Automated GitHub Actions CI Matrix:** `.github/workflows/ci.yml` running invariants across macOS and Ubuntu runners.
-* **Test failure log redaction:** `tail -n 40` cap in `scripts/worktree_gate.sh` to prevent test log bloat.
-* **Remote branch cleanup:** `jules-gate merge <session_id> --delete-remote` flag to clean up dangling tracking branches.
-* **Portable POSIX Support:** Portable inline replacements in `tests/test_invariants.sh` to ensure compatibility across macOS and Ubuntu.
-* **Sub-agent Delegation Architecture:** Empirical >99.5% primary context token savings benchmark.
+## 💰 How Exactly This Skill & Toolset Spares Tokens (The 6-Layer Token Shield)
+
+The Jules Task Controller is explicitly directed to eliminate token waste through 6 concrete architectural mechanisms:
+
+| Layer | Mechanism | How It Saves Tokens |
+| :--- | :--- | :--- |
+| **Layer 1: Zero Local Code Generation** | Cloud VM Offloading | Heavy code, test fixtures, and refactoring are generated in remote Google Cloud VMs. The local agent only receives a compact Git patch, saving **20,000–50,000 output tokens per turn**. |
+| **Layer 2: Zero-Token OS Polling** | `jules-gate wait` Native Daemon | Replaces active LLM polling loops (`schedule` / sleep) with a native background terminal command. The primary LLM stops calling tools and is suspended at **0 tokens while waiting**. (Eliminates the 7M+ token Polling Tax). |
+| **Layer 3: Pre-Dispatch Research Shield** | Sub-Agent (`flash`) | Broad codebase inspections and file explorations are offloaded to an ephemeral `research` sub-agent. The primary `pro` agent avoids reading dozens of files locally, keeping main context **under 10,000 tokens**. |
+| **Layer 4: Multi-Tier Sub-Agent Firewalls** | `flash_lite` & `flash` Workers | Rote shell commands run on `flash_lite` (~1x cost); test verification, rebasing, and git merging run on `flash` (~3x cost). The primary `pro` agent (~15–20x cost) makes **zero tool calls** during execution. |
+| **Layer 5: Diagnostic Sieve & Log Cap** | `tail -n 40` + Assertion Filter | When unit tests fail, `worktree_gate.sh` extracts failing assertion lines and caps the log at the last 40 lines, preventing 2,000+ lines of test runner dumps from overflowing context. |
+| **Layer 6: Serialized Auto-Rebase** | `jules-gate merge --rebase` | Automatically rebases completed parallel review branches onto advanced base branches, preventing semantic conflicts, broken CI builds, and circular retry loops. |
 
 ---
 

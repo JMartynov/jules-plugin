@@ -1,12 +1,12 @@
-# Jules Task Controller v2.5.0 Implementation Details
+# Jules Task Controller v2.6.0 Implementation Details
 
-This document comprehensively outlines the architectural changes, features, and optimizations introduced in **Version 2.5.0** of the Jules Task Controller.
+This document comprehensively outlines the architectural changes, features, and optimizations introduced in **Version 2.6.0** of the Jules Task Controller.
 
 ---
 
 ## 1. 4-Stage Lifecycle Token Insulation (>99.5% Token Savings)
 
-The v2.5.0 architecture evolves the system into a **4-stage multi-tier orchestration system** that dynamically routes tasks to the most efficient model, sparing over 99.5% of main-thread tokens.
+The v2.6.0 architecture evolves the system into an enterprise **4-stage multi-tier orchestration system** that dynamically routes tasks to the most efficient model, sparing over 99.5% of main-thread tokens.
 
 **Token Comparison Matrix:**
 | Architecture Approach | Token Cost | Notes |
@@ -15,6 +15,7 @@ The v2.5.0 architecture evolves the system into a **4-stage multi-tier orchestra
 | Uniform Flash (v2.3) | ~150,000 tokens | Sub-agent handles polling but uses heavier model. |
 | Tiered Routing (v2.4) | ~25,000 tokens | `flash_lite` mechanical runner + `flash` verifier. |
 | 4-Stage Lifecycle (v2.5.0) | <15,000 tokens | Pre-dispatch research + strict no-polling rules. |
+| Full 6-Layer Shield (v2.6.0) | <10,000 tokens | Serialized auto-rebase, pre-dispatch linter, strict primary sweep ban. |
 
 ### The Sub-Agent Polling Tax Case Study
 In prior audits, we found that even when delegating to sub-agents, if a sub-agent attempted to aggressively poll (`jules-gate ps` or `manage_task`) in a tight schedule loop during a background `jules-gate wait`, it could still burn up to **945k tokens**. By introducing a **Strict No-Polling Directive**, once a sub-agent invokes `jules-gate wait`, it must stop calling tools and simply wait to be awoken by the IDE. This prevents the "Polling Tax".
@@ -167,15 +168,39 @@ docs/
 - **Remote-First Deployment:** When dispatching tasks to Jules, target markdown paths are directly specified in the prompt (`docs/reviews/review_<date>.md`). Upon gated merge (`jules-gate merge`), they become permanent tracked documentation.
 - **IDE Artifact Promotion:** Interactive pair-programming artifacts from `.gemini/antigravity/brain/` can be copied directly to `docs/reports/` or `docs/spikes/` and committed to master.
 
+## 6. v2.6.0 Enhancements: Auto-Rebase, Contract Linter & Diagnostic Sieve
+
+### A. Serialized Auto-Rebase Engine
+When merging parallel waves of Jules branches (such as the 5 parallel tracks in `fe4aa44b`), earlier merges advance the base branch, causing subsequent branches to diverge. 
+- `jules-gate merge` now runs an automatic `git merge-base` comparison.
+- If the base branch has advanced, it automatically executes `git rebase <base_branch>` on the review branch.
+- If conflicts arise, it cleanly aborts (`git rebase --abort`) and returns exit code 4, preventing corrupted branches.
+
+### B. Pre-Dispatch Contract Linter (`jules-gate lint`)
+Prevents wasted cloud runs by verifying prerequisites prior to dispatch:
+```bash
+jules-gate lint <owner/repo> [prompt_spec.md]
+```
+- Confirms `jules` CLI is installed and authenticated.
+- Queries `jules remote list --repo` to ensure repo authorization.
+- Validates that prompt specs define concrete target paths and acceptance tests.
+- Auto-detects local test runners (`pytest`, `npm test`, `cargo test`, `go test`).
+
+### C. Test Failure Diagnostic Sieve
+In `scripts/worktree_gate.sh`, failure output is parsed with an assertion sieve:
+- `grep -E "^(FAILED|ERROR|=== FAIL|FAIL:)"` extracts the exact failing assertions.
+- `tail -n 40` provides the immediate stack trace.
+- Eliminates 2,000+ line log dumps, protecting sub-agent context windows.
+
 ---
 
 ## Architecture and Command Table
 
-| Component | Location | Responsibility / Change in v2.4.0 |
+| Component | Location | Responsibility / Change in v2.6.0 |
 | :--- | :--- | :--- |
-| **`jules-gate` CLI** | `bin/jules-gate` | Added `ps` subcommand, added `--delete-remote` for `merge`. |
-| **Gated Verification** | `scripts/worktree_gate.sh` | Integrated `tail -n 40` log redaction mechanism for failed tests. |
-| **Invariant Suite** | `tests/test_invariants.sh` | Refactored for portable POSIX compliant bash operations, added assertions for tiered routing. |
-| **Token Monitor** | Architecture Standard | Benchmarked >99.5% token savings via dynamic routing. |
+| **`jules-gate` CLI** | `bin/jules-gate` | Added `lint` pre-flight command, added serialized auto-rebase to `merge`, added `ps` session viewer. |
+| **Gated Verification** | `scripts/worktree_gate.sh` | Integrated diagnostic sieve (`grep` assertion filter) + `tail -n 40` log cap. |
+| **Invariant Suite** | `tests/test_invariants.sh` | 31 automated assertions validating CLI, rules, no-polling directives, and test runners. |
+| **Token Shield** | Architecture Standard | Benchmarked >99.5% token savings across 6-layer shield. |
 | **Artifact Taxonomy** | `docs/` | Structured taxonomy for reviews, spikes, implementation, and reports. |
 
