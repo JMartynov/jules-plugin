@@ -1,188 +1,186 @@
 ---
 name: jules-task-controller
 description: >-
-  Orchestrate Google Jules (EULIS) coding tasks with sub-agent concurrency, feasibility triage gates,
-  zero-token polling, isolated Git worktrees, and gated review/PR verification (Version 2.0).
-  Use whenever starting, managing, monitoring, or reviewing tasks assigned to Jules / EULIS across any programming language.
+  Orchestrate Google Jules (EULIS) coding tasks with automated task splitting, multi-modal delegation
+  (features, code reviews, tests, research spikes), sub-agent concurrency, zero-token polling, and gated verification (Version 2.1).
+  Use whenever planning, splitting, delegating, or verifying tasks assigned to Jules / EULIS across any programming language.
 ---
 
-# Jules Task Controller (Version 2.0)
+# Jules Task Controller (Version 2.1)
 
-An enterprise, token-efficient orchestrator for Google Jules (EULIS). Governs task triage, product-agnostic prompt generation, background sub-agent execution, zero-token polling, and gated verification.
-
----
-
-## Architecture Lifecycle
-
-```
-[ User Request ]
-       │
-       ▼
-[ Step 0: Delegation Feasibility & Dependency Gate ]
-       ├── Non-Delegatable (Local DB, hardware, secrets) ──► Keep on Local Agent
-       ├── Partially Delegatable ────────────────────────► Split: Jules (Logic) + Local (Wiring)
-       └── Fully Delegatable ─────────────────────────────► Proceed to Step 1
-                                                                    │
-       ┌────────────────────────────────────────────────────────────┘
-       ▼
-[ Step 1: Formulate Generous, Product-Agnostic Task Plan ]
-       │
-       ▼
-[ Step 2: Spawn Sub-Agent (`Model: 'flash'`, `Workspace: 'share'`) ]
-       ├── Submits task: `jules remote new --repo <owner/repo>`
-       └── Waits with ZERO token consumption: `jules-gate wait <session_id>`
-               │
-               ▼ (Session Completed)
-[ Step 3: Gated Verification in Git Worktree ]
-       └── Executes: `jules-gate verify <session_id>`
-               ├── Auto-detects test runner (pytest, npm, cargo, go, mvn)
-               └── Tests Pass?
-                     ├── [YES] ──► Proceed to Step 4
-                     └── [NO]  ──► Hotfix locally or Retry (Max 3 attempts)
-                                           │
-       ┌───────────────────────────────────┘
-       ▼
-[ Step 4: Integration (Local Merge vs. Verified PR) ]
-       ├── Solo / Fast-track ──► `jules-gate merge <session_id> <target_branch>`
-       └── Team / Protected  ──► `jules-gate pr <session_id> <target_branch>`
-```
+An enterprise orchestrator for **Google Jules (EULIS)**. Designed to maximize delegation of all software engineering tasks—including feature authoring, code review, test suite synthesis, and exploratory research—while mathematically eliminating token waste through zero-token polling and automated task splitting.
 
 ---
 
-## Step 0: Delegation Feasibility & Dependency Gate
+## ⚡ Quick Reference Cheat Sheet
 
-Before sending any task to Jules, run this 4-point triage:
-
-| Criterion | Evaluation Question | Decision |
+| Command | Action | Key Benefit |
 | :--- | :--- | :--- |
-| **1. Runtime / Infrastructure** | Does execution require local Docker daemons, localhost databases (Postgres/Mongo), or physical hardware/WebUSB? | If **YES** ➔ Keep local or mock interface for Jules. |
-| **2. Security & Secrets** | Does the task require access to uncommitted `.env` files, production API tokens, or private submodules? | If **YES** ➔ Keep secrets local; delegate only pure logic. |
-| **3. Local Context Size** | Does the task require scanning thousands of uncommitted files or exploratory ad-hoc forensics? | If **YES** ➔ Perform data forensics locally first. |
-| **4. Modularity & Tests** | Is the task a standalone parser, algorithm, feature module, unit test suite, refactor, or bugfix with clear repro? | If **YES** ➔ **100% Delegatable to Jules.** |
+| `jules-gate wait <id...> --timeout 30` | Polls sessions in terminal background | **Consumes 0 LLM input tokens while waiting** |
+| `jules-gate verify <id> [base_branch]` | Pulls patch to clean branch & runs tests | **Auto-detects pytest, npm, cargo, go, mvn** |
+| `jules-gate merge <id> [base_branch]` | Merges verified branch with `--no-ff` | **One-step clean integration** |
+| `jules-gate pr <id> [base_branch]` | Pushes verified branch & opens GitHub PR | **Guaranteed green CI, zero wasted runner hours** |
 
-### Triage Outcomes:
-* **Full Delegation:** Task is isolated and self-contained ➔ Proceed to Step 1.
-* **Partial Delegation:** Split the work:
-  1. Have Jules implement the algorithmic logic, data structures, and unit tests in isolation.
-  2. Implement the local configuration, secret binding, or DB connection on the IDE main thread.
-* **Non-Delegatable:** Implement directly on the local thread without sending to Jules.
+### Step 0 Triage Rules:
+* 🟢 **Delegate to Jules:** Standalone modules, algorithms, parsers, test suites, refactoring, code reviews, research spikes.
+* 🔴 **Keep on Local Agent:** Local Docker daemons, localhost DBs (Mongo/Postgres), uncommitted `.env` secrets, massive local file forensics.
+* 🟡 **Split the Task:** Isolate domain logic for Jules; wire local secrets/DB connections locally.
 
 ---
 
-## Step 1: Generous, Product-Agnostic Prompt Specification
+## 1. Automated Task Separation & Splitting Engine
 
-When writing prompts for Jules, provide generous, self-contained notes that are **language- and product-agnostic**.
+When an incoming user request contains both delegatable logic and local infrastructure dependencies, **do not reject delegation**. Automatically split the task:
 
-### Prompt Template:
+$$\text{User Request} \longrightarrow \mathbf{\text{Component A (Remote EULIS)}} \;+\; \mathbf{\text{Component B (Local Agent)}}$$
+
+```
+                ┌─────────────────────────────────────────────────────────┐
+                │                       USER TASK                         │
+                │ "Add MongoDB User Caching with Redis & Token Refresh"   │
+                └────────────────────────────┬────────────────────────────┘
+                                             │
+                      ┌──────────────────────┴──────────────────────┐
+                      ▼                                             ▼
+       ┌─────────────────────────────┐               ┌─────────────────────────────┐
+       │   COMPONENT A (Remote Jules)│               │   COMPONENT B (Local Agent) │
+       │   [Zero Local Dependencies] │               │   [Local Dependencies Only] │
+       │ • Pure CacheKey generation  │               │ • Connect to local MongoDB  │
+       │ • In-memory cache interface │               │ • Read uncommitted .env     │
+       │ • Token hashing & TTL logic │               │ • Wire Component A to DB    │
+       │ • 100% Mock unit test suite │               │ • Run integration test suite│
+       └─────────────────────────────┘               └─────────────────────────────┘
+```
+
+### The 4-Step Splitting Protocol:
+1. **Define Abstract Interface:** Create the clean protocol or abstract base class (e.g. `UserRepositoryProtocol`, `CacheProviderInterface`).
+2. **Dispatch Component A (Remote Jules):** Send the pure algorithms, data validation, cache key hashing, and mock unit tests to Jules.
+3. **Wait & Verify Component A:** Wait token-free via `jules-gate wait`, then test via `jules-gate verify`.
+4. **Local Integration (Component B):** Once Component A is merged, the local agent writes the minimal bridge connecting the live database and `.env` secrets.
+
+---
+
+## 2. Multi-Modal Delegation Catalog
+
+Jules is not limited to standard feature coding. Use these standardized templates for different engineering needs:
+
+### Mode 1: Feature & Parser Implementation
 ```markdown
-### Task: <Clear, Descriptive Title>
+### Task: Implement <Module / Feature Name>
+#### 1. Context & Contract:
+- Implement `function_name(param: Type) -> ReturnType` in `<path/to/file>`.
+#### 2. Strict Guardrails:
+- Zero Unauthorized Dependencies: Use only repo dependencies or standard libraries.
+- AST / Regex Safety: Use negative lookbehinds `(?<!Server)` to avoid matching generic objects.
+#### 3. Testing:
+- Add comprehensive unit tests in `tests/test_<module>.<ext>`.
+```
 
-#### 1. Context & Objectives:
-<Briefly explain WHAT needs to be accomplished and WHY, independent of proprietary internal names.>
+### Mode 2: Delegated Code Review & Security Auditing
+```bash
+# Generate diff of local branch or commit
+git diff main...HEAD > .jules/review_target.patch
 
-#### 2. Architecture & File Scope:
-- Target files to modify or create:
-  * `<path/to/target/file>`
-  * `<path/to/test/file>`
-- Expected interface / function signatures:
-  * `function_name(param: Type) -> ReturnType`
+# Dispatch review to Jules
+jules remote new --repo "<owner/repo>" << 'EOF'
+### Task: Rigorous Code Review & Security Audit of .jules/review_target.patch
+Please perform an in-depth senior engineering review of the patch.
+Analyze:
+1. Concurrency & Race Conditions: Thread safety, lock contention, asynchronous leaks.
+2. Boundary Conditions & Null Checks: Edge cases, zero values, unicode handling.
+3. Security & Injection: Injection vulnerabilities, unvalidated inputs, credential leaks.
+4. Test Completeness: What tests are missing in this diff?
+Produce a markdown report in `docs/reviews/review_<date>.md`.
+EOF
+```
 
-#### 3. Strict Guardrails:
-- Zero Unauthorized Dependencies: Use only the existing dependencies in the repo or the language standard library.
-- Regex & AST Safety: When matching patterns, use negative lookbehinds/lookaheads to prevent matching constructor declarations or generic object literals.
-- Backward Compatibility: Existing behavior and test suites must not be broken.
+### Mode 3: Delegated Exploratory Research & Spikes
+```bash
+jules remote new --repo "<owner/repo>" << 'EOF'
+### Task: Exploratory Spike - Evaluate <Library / Architecture>
+Investigate whether we can implement <Goal> using <Technology>.
+1. Create an isolated prototype module in `src/experimental/`.
+2. Write 3 sample unit tests demonstrating feasibility.
+3. Document pros, cons, and performance trade-offs in `docs/spikes/<topic>.md`.
+EOF
+```
 
-#### 4. Verification & Testing:
-- Add comprehensive, self-contained unit tests covering happy paths, boundary conditions, and invalid inputs.
-- Ensure the test suite executes cleanly using standard project test conventions.
+### Mode 4: Delegated Edge-Case & Fuzz Test Synthesis
+```bash
+jules remote new --repo "<owner/repo>" << 'EOF'
+### Task: Synthesize 30+ Stress & Edge-Case Tests for <Module>
+Inspect `<target_file>`. Create `tests/test_<target>_stress.<ext>`.
+Cover:
+- Malformed payloads and unexpected type coercion.
+- Max-length strings, empty arrays, null bytes.
+- Exception handling on network or IO boundaries.
+All tests must execute cleanly with the project test runner.
+EOF
 ```
 
 ---
 
-## Step 2: Sub-Agent Concurrency & Zero-Token Polling
+## 3. Sub-Agent Execution Protocol (Zero-Token Main Context)
 
-To spare tokens on the main thread and enable parallel throughput:
+When orchestrating Jules from Antigravity:
 
-1. **Invoke a Background Sub-Agent:**
-   Use `invoke_subagent` with:
-   - `Model: 'flash'` (drastically reduces token cost)
-   - `Workspace: 'share'` (provisions an isolated Git worktree so parallel tasks never collide)
-   - `Role: 'Jules Task Runner'`
+1. **Spawn Sub-Agent:**
+   Invoke `invoke_subagent` with:
+   * `Model: 'flash'` (fast, token-efficient)
+   * `Workspace: 'share'` (provisions an isolated Git worktree so parallel tasks never conflict)
+   * `Role: 'Jules Worker'`
 
-2. **Submit Session via CLI:**
-   ```bash
-   cat << 'EOF' > .jules/task_prompt.md
-   <Prompt from Step 1>
-   EOF
-   jules remote new --repo <owner/repo> < .jules/task_prompt.md
-   ```
-   *Record the returned `<session_id>`.*
-
-3. **Zero-Token Polling Wait:**
-   **DO NOT** poll in an LLM `schedule` loop! Run the universal watcher script:
+2. **Wait Token-Free:**
+   In the sub-agent or terminal, run:
    ```bash
    jules-gate wait <session_id> --timeout 30
    ```
-   *For parallel tasks, pass multiple IDs simultaneously:*
+   *For parallel tasks:*
    ```bash
    jules-gate wait <id1> <id2> <id3> --timeout 45
    ```
-   *This command sleeps in the background terminal and consumes **0 LLM tokens** while waiting.*
+
+3. **Verify in Worktree:**
+   ```bash
+   jules-gate verify <session_id>
+   ```
+
+4. **Report to Orchestrator:**
+   The sub-agent returns a single completion message to the main thread:
+   > *"Session <id> completed. All tests passed (38/38). Changes committed to `jules/review-<id>`. Ready to merge."*
 
 ---
 
-## Step 3: Gated Verification in Git Worktree
+## 4. Gated Integration (Merge vs. PR)
 
-Once Jules finishes, run the universal verification gate:
+### Path A: Solo / Direct Integration
 ```bash
-jules-gate verify <session_id> [base_branch]
+jules-gate merge <session_id> [base_branch]
 ```
+*Merges the review branch into your target branch with `--no-ff` and cleans up the temporary branch.*
 
-### What `jules-gate verify` handles automatically:
-1. Pulls remote patch to `.jules/patches/<session_id>.patch`.
-2. Checks out a clean review branch: `jules/review-<session_id>`.
-3. Applies the patch with safety checks (`git apply`).
-4. **Auto-detects the project test runner:**
-   * Python: `pytest` or `python3 -m unittest`
-   * Node/TypeScript: `npm test`
-   * Rust: `cargo test`
-   * Go: `go test ./...`
-   * Java: `mvn test` or `./gradlew test`
-5. Runs test suite. If tests fail, it reverts cleanly to protect the branch.
+### Path B: Enterprise Gated Pull Request
+```bash
+jules-gate pr <session_id> [base_branch]
+```
+*Pushes the review branch to GitHub and opens a Pull Request using `gh pr create`. Guarantees green remote CI runs because local test gates already verified the diff.*
 
 ---
 
-## Step 4: Integration Decision (Local Merge vs. Verified PR)
+## 5. Parallel Merge Conflicts & Retries
 
-Choose the integration strategy based on repository workflow:
-
-### Mode A: Solo / Trunk-Based Repos (Direct Fast Integration)
-```bash
-jules-gate merge <session_id> <target_branch>
-```
-*Merges the verified review branch into `<target_branch>` with `--no-ff` and deletes the review branch.*
-
-### Mode B: Team / Protected Repos (Verified Pull Request)
-```bash
-jules-gate pr <session_id> <target_branch>
-```
-*Pushes `jules/review-<session_id>` to GitHub and opens a Pull Request via GitHub CLI (`gh`). Because tests already passed in Step 3, the remote CI pipeline is guaranteed to succeed with zero wasted runner hours.*
-
----
-
-## Step 5: Handling Merge Conflicts & Retries
-
-### Parallel Merge Conflicts:
-When merging multiple parallel branches (e.g., Branch A and Branch B):
+### Parallel Rebase Strategy:
+When multiple parallel Jules branches finish:
 1. Merge Branch A into `main`.
 2. Rebase Branch B onto updated `main`:
    ```bash
-   git checkout jules/review-<id2>
-   git rebase main
+   git checkout jules/review-<id_B> && git rebase main
    ```
-3. If conflicts occur, inspect diffs, preserve both features' AST/logic registrations, and run the test runner.
+3. Resolve any semantic or registration conflicts.
+4. Run project tests (`pytest`, `npm test`, `cargo test`).
+5. Complete rebase (`git rebase --continue`) and merge.
 
-### Retry Loop Threshold:
-* If code fails review or tests: **Max 3 retries**.
-* Provide Jules with the exact test failure output and diff of what went wrong.
+### Retry Limit Threshold:
+* If review or tests fail: **Max 3 retries**.
+* Provide Jules with the exact test failure output and failure diff.
 * If 3 attempts fail, halt and escalate to the human developer.

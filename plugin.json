@@ -1,7 +1,7 @@
 {
   "name": "jules-plugin",
-  "version": "2.0.0",
-  "description": "Enterprise Google Jules (EULIS) orchestrator with sub-agent concurrency, zero-token polling, feasibility gates, and gated branch/PR verification.",
+  "version": "2.1.0",
+  "description": "Enterprise Google Jules (EULIS) orchestrator with always-on delegation policy, automated task splitting, multi-modal delegation (code, reviews, tests, research), zero-token polling, and gated verification.",
   "author": {
     "name": "Ivan"
   }

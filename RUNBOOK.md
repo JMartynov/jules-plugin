@@ -1,6 +1,6 @@
 # Jules Task Controller: Operational Runbook
 
-**Version:** 2.0.0  
+**Version:** 2.1.0  
 **Target Audience:** Software Engineers, DevOps, Autonomous AI Agents (Antigravity / Gemini IDE, Claude Code, Cursor, JetBrains, VS Code)  
 **System Repository:** [`https://github.com/JMartynov/jules-plugin`](https://github.com/JMartynov/jules-plugin)
 
@@ -9,13 +9,14 @@
 ## 📑 Table of Contents
 1. [Architecture & Workflow Overview](#1-architecture--workflow-overview)
 2. [Pre-flight Checklist & Environment Setup](#2-pre-flight-checklist--environment-setup)
-3. [Step 0: Delegation Feasibility Triage](#3-step-0-delegation-feasibility-triage)
-4. [Step 1: Formulating Product-Agnostic Tasks](#4-step-1-formulating-product-agnostic-tasks)
-5. [Step 2: Sub-Agent Dispatch & Zero-Token Polling](#5-step-2-sub-agent-dispatch--zero-token-polling)
-6. [Step 3: Gated Verification & Test Execution](#6-step-3-gated-verification--test-execution)
-7. [Step 4: Integration Decisions (Merge vs. PR)](#7-step-4-integration-decisions-merge-vs-pr)
-8. [Parallel Execution & Merge Conflict Playbook](#8-parallel-execution--merge-conflict-playbook)
-9. [Troubleshooting & Failure Modes](#9-troubleshooting--failure-modes)
+3. [Step 0: Delegation Feasibility Triage & Task Splitting](#3-step-0-delegation-feasibility-triage--task-splitting)
+4. [Multi-Modal Delegation Playbooks (Code, Review, Spikes, Fuzzing)](#4-multi-modal-delegation-playbooks-code-review-spikes-fuzzing)
+5. [Step 1: Formulating Product-Agnostic Tasks](#5-step-1-formulating-product-agnostic-tasks)
+6. [Step 2: Sub-Agent Dispatch & Zero-Token Polling](#6-step-2-sub-agent-dispatch--zero-token-polling)
+7. [Step 3: Gated Verification & Test Execution](#7-step-3-gated-verification--test-execution)
+8. [Step 4: Integration Decisions (Merge vs. PR)](#8-step-4-integration-decisions-merge-vs-pr)
+9. [Parallel Execution & Merge Conflict Playbook](#9-parallel-execution--merge-conflict-playbook)
+10. [Troubleshooting & Failure Modes](#10-troubleshooting--failure-modes)
 
 ---
 
@@ -26,8 +27,8 @@ The Jules Task Controller implements a **tri-tier hybrid orchestration architect
 ```
                       ┌──────────────────────────────────────┐
                       │        Main Orchestrator (IDE)       │
-                      │  • Architecture & Plan Decomposition │
-                      │  • Step 0 Feasibility Triage         │
+                      │  • Always-On Policy (rules/AGENTS.md)│
+                      │  • Task Splitting & Decomposition    │
                       └──────────────────┬───────────────────┘
                                          │ Spawns isolated worker
                                          ▼
@@ -71,8 +72,8 @@ gh auth status
 
 # 3. Verify jules-gate CLI is in system PATH
 which jules-gate
-# If missing, link it:
-ln -sfn ~/.gemini/config/plugins/jules-plugin/scripts/worktree_gate.sh ~/.local/bin/jules-gate
+# If missing, run one-click installer:
+~/.gemini/config/plugins/jules-plugin/install.sh
 
 # 4. Verify Git repository is in a clean working state
 git status -s
@@ -80,7 +81,7 @@ git status -s
 
 ---
 
-## 3. Step 0: Delegation Feasibility Triage
+## 3. Step 0: Delegation Feasibility Triage & Task Splitting
 
 Not every task should be sent to a remote cloud VM. Run every incoming requirement through this 4-point feasibility matrix:
 
@@ -108,25 +109,68 @@ Not every task should be sent to a remote cloud VM. Run every incoming requireme
                        [100% DELEGATABLE TO JULES]
 ```
 
-### Triage Categorization Examples:
-* **Fully Delegatable:**
-  * Implementing a new AST extractor for TypeScript, Go, or Rust.
-  * Creating an OpenAPI/Swagger parser with comprehensive unit tests.
-  * Refactoring an existing utility class into a clean functional module.
-  * Adding unit test coverage for an existing module.
-* **Partially Delegatable (Split-Task):**
-  * *Part A (Jules):* Write the business logic functions, data validation, and mock tests.
-  * *Part B (Local):* Connect the module to local `.env` secrets or local Docker database instances.
-* **Non-Delegatable (Keep 100% Local):**
-  * Debugging an issue that only reproduces against a local Docker container or localhost database.
-  * Ad-hoc exploratory forensics across thousands of local uncommitted files.
-  * Tasks requiring interactive browser UI debugging or hardware USB tokens.
+### The Automated Task Splitting Protocol:
+When a task has local dependencies, do **not** abandon delegation. Automatically split the task into two decoupled components:
+
+$$\text{Task} \longrightarrow \mathbf{\text{Component A (Cloud EULIS)}} \;+\; \mathbf{\text{Component B (Local Agent)}}$$
+
+* **Component A (Cloud EULIS):**
+  * Core domain algorithms, data validation, AST/regex parsing, and cache key computation.
+  * Abstract interfaces and comprehensive mock unit tests.
+* **Component B (Local IDE):**
+  * Uncommitted `.env` secrets, database connection pools, local Docker networking, and integration test execution.
 
 ---
 
-## 4. Step 1: Formulating Product-Agnostic Tasks
+## 4. Multi-Modal Delegation Playbooks (Code, Review, Spikes, Fuzzing)
 
-When writing tasks for Jules, provide generous, contract-first instructions. Never assume Jules has implicit context about internal product names.
+### Playbook 1: Delegated Code Review & Security Auditing
+Before merging a large PR or branch, offload the review to Jules:
+```bash
+git diff main...HEAD > .jules/review_target.patch
+
+jules remote new --repo "$REPO" << 'EOF'
+### Task: Senior Code Review & Security Audit of .jules/review_target.patch
+Please perform an in-depth senior engineering review of the patch.
+Analyze:
+1. Concurrency & Race Conditions: Thread safety, lock contention, asynchronous leaks.
+2. Boundary Conditions & Null Checks: Edge cases, zero values, unicode handling.
+3. Security & Injection: Injection vulnerabilities, unvalidated inputs, credential leaks.
+4. Test Completeness: What tests are missing in this diff?
+Produce a markdown report in `docs/reviews/review_<date>.md`.
+EOF
+```
+
+### Playbook 2: Delegated Exploratory Research & Spikes
+When evaluating an external library or architectural approach, offload the spike:
+```bash
+jules remote new --repo "$REPO" << 'EOF'
+### Task: Exploratory Spike - Evaluate <Library / Architecture>
+Investigate whether we can implement <Goal> using <Technology>.
+1. Create an isolated prototype module in `src/experimental/`.
+2. Write 3 sample unit tests demonstrating feasibility.
+3. Document pros, cons, and performance trade-offs in `docs/spikes/<topic>.md`.
+EOF
+```
+
+### Playbook 3: Delegated Edge-Case & Fuzz Test Synthesis
+```bash
+jules remote new --repo "$REPO" << 'EOF'
+### Task: Synthesize 30+ Stress & Edge-Case Tests for <Module>
+Inspect `<target_file>`. Create `tests/test_<target>_stress.<ext>`.
+Cover:
+- Malformed payloads and unexpected type coercion.
+- Max-length strings, empty arrays, null bytes.
+- Exception handling on network or IO boundaries.
+All tests must execute cleanly with the project test runner.
+EOF
+```
+
+---
+
+## 5. Step 1: Formulating Product-Agnostic Tasks
+
+When writing feature tasks for Jules, provide generous, contract-first instructions. Never assume Jules has implicit context about internal product names.
 
 ### High-Yield Prompt Structure:
 Save the prompt to `.jules/task_prompt.md`:
@@ -160,7 +204,7 @@ Explain what needs to be implemented and why, using standard software engineerin
 
 ---
 
-## 5. Step 2: Sub-Agent Dispatch & Zero-Token Polling
+## 6. Step 2: Sub-Agent Dispatch & Zero-Token Polling
 
 ### 1. Launch Session via Jules CLI:
 ```bash
@@ -185,7 +229,7 @@ The script will print progress updates every 30 seconds and exit with code `0` w
 
 ---
 
-## 6. Step 3: Gated Verification & Test Execution
+## 7. Step 3: Gated Verification & Test Execution
 
 Once the session finishes, run the verification gate:
 ```bash
@@ -208,7 +252,7 @@ jules-gate verify <session_id> [base_branch]
 
 ---
 
-## 7. Step 4: Integration Decisions (Merge vs. PR)
+## 8. Step 4: Integration Decisions (Merge vs. PR)
 
 Choose the integration path that fits your project model:
 
@@ -226,7 +270,7 @@ jules-gate pr <session_id> [base_branch]
 
 ---
 
-## 8. Parallel Execution & Merge Conflict Playbook
+## 9. Parallel Execution & Merge Conflict Playbook
 
 When running 2 to 5 Jules tasks simultaneously:
 
@@ -262,7 +306,7 @@ main branch ───┤
 
 ---
 
-## 9. Troubleshooting & Failure Modes
+## 10. Troubleshooting & Failure Modes
 
 ### 1. `jules: command not found`
 * **Fix:** Install globally:
