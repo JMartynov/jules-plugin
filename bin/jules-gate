@@ -31,6 +31,7 @@ Commands:
   verify <session_id> [base_branch]      Pull patch, checkout isolated review branch, run tests, and gate.
   merge <session_id> [base_branch]       Verify and merge review branch into target branch (fast-forward or no-ff).
   pr <session_id> [base_branch]          Verify and push review branch, opening a verified GitHub PR via `gh`.
+  status                                 Check and display plugin version and core script statuses.
   help                                   Show this help message.
 EOF
     exit 1
@@ -74,6 +75,54 @@ case "$CMD" in
         git push -u origin "$REVIEW_BRANCH"
         gh pr create --base "$BASE_BRANCH" --head "$REVIEW_BRANCH" --title "feat(jules): session $SESSION_ID" --body "Automated verified changes from Jules session $SESSION_ID."
         echo "✅ Pull request successfully created!"
+        ;;
+    status)
+        PLUGIN_JSON=""
+        if [[ -f "$ROOT_DIR/plugin.json" ]]; then
+            PLUGIN_JSON="$ROOT_DIR/plugin.json"
+        elif [[ -f "$HOME/.gemini/config/plugins/jules-plugin/plugin.json" ]]; then
+            PLUGIN_JSON="$HOME/.gemini/config/plugins/jules-plugin/plugin.json"
+        fi
+
+        VERSION="unknown"
+        if [[ -n "$PLUGIN_JSON" && -f "$PLUGIN_JSON" ]]; then
+            VERSION=$(grep '"version"' "$PLUGIN_JSON" | head -n 1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
+        fi
+
+        POLL_WAIT_SCRIPT="$SCRIPTS_DIR/jules_poll_wait.sh"
+        WORKTREE_GATE_SCRIPT="$SCRIPTS_DIR/worktree_gate.sh"
+
+        echo "Plugin version: $VERSION"
+        echo "Scripts:"
+
+        ALL_EXEC=true
+        if [[ -f "$POLL_WAIT_SCRIPT" ]]; then
+            if [[ -x "$POLL_WAIT_SCRIPT" ]]; then
+                echo "  - $POLL_WAIT_SCRIPT: executable"
+            else
+                echo "  - $POLL_WAIT_SCRIPT: not executable"
+                ALL_EXEC=false
+            fi
+        else
+            echo "  - $POLL_WAIT_SCRIPT: not found"
+            ALL_EXEC=false
+        fi
+
+        if [[ -f "$WORKTREE_GATE_SCRIPT" ]]; then
+            if [[ -x "$WORKTREE_GATE_SCRIPT" ]]; then
+                echo "  - $WORKTREE_GATE_SCRIPT: executable"
+            else
+                echo "  - $WORKTREE_GATE_SCRIPT: not executable"
+                ALL_EXEC=false
+            fi
+        else
+            echo "  - $WORKTREE_GATE_SCRIPT: not found"
+            ALL_EXEC=false
+        fi
+
+        if [[ "$ALL_EXEC" != "true" ]]; then
+            exit 1
+        fi
         ;;
     -h|--help|help)
         usage

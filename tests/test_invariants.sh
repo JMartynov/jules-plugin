@@ -59,6 +59,14 @@ for subcmd in wait verify merge pr; do
     fi
 done
 
+STATUS_OUT=$("$GATE_BIN" status 2>&1 || true)
+EXPECTED_VER=$(grep '"version"' "$PLUGIN_ROOT/plugin.json" | head -n 1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
+if echo "$STATUS_OUT" | grep -q "$EXPECTED_VER"; then
+    log_pass "jules-gate status outputs plugin version ($EXPECTED_VER)"
+else
+    log_fail "jules-gate status failed to output plugin version"
+fi
+
 # ------------------------------------------------------------
 # INVARIANT 2: Zero-Token Polling Watcher (jules_poll_wait.sh)
 # ------------------------------------------------------------
