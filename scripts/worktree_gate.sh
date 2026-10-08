@@ -102,6 +102,8 @@ if [[ -n "$TEST_CMD" ]]; then
         rm -f "$TEST_LOG"
     else
         echo "❌ Tests failed on branch $REVIEW_BRANCH. Reverting changes."
+        echo "--- [Test Failure Diagnostics] ---"
+        grep -E "^(FAILED|ERROR|=== FAIL|FAIL:) " "$TEST_LOG" | head -n 15 || true
         echo "--- [Test Failure Summary (Last 40 lines)] ---"
         tail -n 40 "$TEST_LOG"
         rm -f "$TEST_LOG"

@@ -34,3 +34,7 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
 
 5. **Strict No-Polling Directive for Sub-Agents:**
    Sub-agents (especially `flash_lite`) must **NEVER** invoke `schedule` or `poll` in a loop with `manage_task` or `jules-gate ps` while `jules-gate wait` is running. Once `jules-gate wait` is launched, **stop calling tools** and let the platform wake you up automatically upon task exit.
+
+6. **Strict Ban on Primary-Context Multi-File Sweeps & Board Enrichment:**
+   * **Pre-Dispatch Exploration**: The primary Pro agent is strictly prohibited from running multi-file codebase explorations locally. If the user asks to "inspect", "explore", or "investigate" a repository, the agent MUST immediately spawn a `research` sub-agent (`Model: 'flash'`).
+   * **Post-Dispatch Reporting & Boards**: Multi-card GitHub Project Board enrichment (`gh project`) and detailed report authoring MUST be offloaded to an ephemeral `flash` sub-agent. The primary agent only renders the final summary and links.

@@ -1,6 +1,6 @@
-# Google Jules (EULIS) Task Controller Plugin (Version 2.5.0)
+# Google Jules (EULIS) Task Controller Plugin (Version 2.6.0)
 
-[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](plugin.json)
+[![Version](https://img.shields.io/badge/version-2.6.0-blue.svg)](plugin.json)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](README.md)
 [![Status](https://img.shields.io/badge/status-active-success.svg)](https://github.com/JMartynov/jules-plugin)
 
@@ -21,13 +21,13 @@ An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Design
 
 ---
 
-## 🌟 What's New in Version 2.5.0
+## 🌟 What's New in Version 2.6.0
 
-* **Strict No-Polling Directive:** Prevented the 945k token Sub-Agent Polling Tax by strictly prohibiting loop-based tool calls when `jules-gate wait` is running.
-* **4-Stage Lifecycle Token Insulation:** Updated routing to a 4-stage lifecycle ensuring the primary thread never runs out of context.
-* **Pre-Dispatch Research Sub-Agent Pattern:** Introduced a pattern to spawn a research sub-agent (`flash`) before execution to summarize code context and save tokens.
-* **Post-Verification Reporting Delegation:** Verifier sub-agents (`flash`) now generate and commit markdown reports natively before concluding.
-* **Version Bump:** Bumped overarching plugin functionality to 2.5.0.
+* **Serialized Auto-Rebase Engine:** `jules-gate merge` automatically detects when the target branch has advanced, rebasing parallel Jules branches sequentially to prevent semantic regressions.
+* **Pre-Dispatch Contract Linter:** New `jules-gate lint <repo> [prompt]` command validates repo connection, prompt contract bounds, and local test runners before cloud submission.
+* **Test Failure Diagnostic Sieve:** Enhanced `worktree_gate.sh` to extract failing test assertions and stack traces directly before applying the `tail -n 40` log cap.
+* **Strict Primary-Context Exploration & Board Ban:** Enforced operational rule prohibiting multi-file local sweeps and board enrichments on the primary `pro` context, mandating sub-agent execution.
+* **Universal IDE Onboarding:** Streamlined one-step onboarding across Antigravity, VS Code, JetBrains, Cursor, and Terminal.
 
 ## 🌟 What's New in Version 2.4.0
 

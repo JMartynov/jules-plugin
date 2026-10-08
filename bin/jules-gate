@@ -29,8 +29,9 @@ Usage: jules-gate <command> [arguments...]
 Commands:
   wait <session_id...> [--timeout MINS]  Poll and wait for Jules session(s) with ZERO LLM token cost.
   verify <session_id> [base_branch]      Pull patch, checkout isolated review branch, run tests, and gate.
-  merge <session_id> [base] [--delete-remote] Verify and merge review branch into target branch.
+  merge <session_id> [base] [--no-rebase] [--delete-remote] Verify, auto-rebase, and merge review branch.
   pr <session_id> [base_branch]          Verify and push review branch, opening a verified GitHub PR via `gh`.
+  lint <repo> [prompt_file]              Pre-flight contract linter to validate repo connection and prompt spec.
   ps [flags]                             List remote Jules sessions and statuses.
   status                                 Check and display plugin version, scripts, and Jules CLI status.
   help                                   Show this help message.
@@ -57,10 +58,15 @@ case "$CMD" in
         shift
         BASE_BRANCH=""
         DELETE_REMOTE=false
+        AUTO_REBASE=true
         while [[ $# -gt 0 ]]; do
             case "$1" in
                 --delete-remote)
                     DELETE_REMOTE=true
+                    shift
+                    ;;
+                --no-rebase)
+                    AUTO_REBASE=false
                     shift
                     ;;
                 *)
@@ -80,6 +86,21 @@ case "$CMD" in
         REVIEW_BRANCH="jules/review-${SESSION_ID}"
         
         "$SCRIPTS_DIR/worktree_gate.sh" "$SESSION_ID" "$BASE_BRANCH"
+        
+        if [[ "$AUTO_REBASE" == "true" ]]; then
+            MERGE_BASE=$(git merge-base "$REVIEW_BRANCH" "$BASE_BRANCH" 2>/dev/null || true)
+            BASE_HEAD=$(git rev-parse "$BASE_BRANCH" 2>/dev/null || true)
+            if [[ -n "$MERGE_BASE" && -n "$BASE_HEAD" && "$MERGE_BASE" != "$BASE_HEAD" ]]; then
+                echo "==> Serialized Rebase: Base branch $BASE_BRANCH has advanced. Auto-rebasing $REVIEW_BRANCH..."
+                git checkout "$REVIEW_BRANCH"
+                if ! git rebase "$BASE_BRANCH"; then
+                    echo "❌ Semantic or textual conflict during rebase of $REVIEW_BRANCH onto $BASE_BRANCH. Aborting."
+                    git rebase --abort
+                    exit 4
+                fi
+                echo "✅ Successfully rebased $REVIEW_BRANCH onto $BASE_BRANCH"
+            fi
+        fi
         
         echo "==> Merging $REVIEW_BRANCH into $BASE_BRANCH..."
         git checkout "$BASE_BRANCH"
@@ -109,6 +130,77 @@ case "$CMD" in
         git push -u origin "$REVIEW_BRANCH"
         gh pr create --base "$BASE_BRANCH" --head "$REVIEW_BRANCH" --title "feat(jules): session $SESSION_ID" --body "Automated verified changes from Jules session $SESSION_ID."
         echo "✅ Pull request successfully created!"
+        ;;
+    lint|check)
+        REPO="${1:-}"
+        PROMPT_FILE="${2:-}"
+        
+        echo "=========================================================="
+        echo " [Jules Gate] Pre-Dispatch Contract Linter"
+        echo "=========================================================="
+        
+        LINT_PASSED=true
+        
+        # 1. Check Jules CLI installation
+        if command -v jules >/dev/null 2>&1; then
+            echo "  ✅ Jules CLI: $(command -v jules) detected"
+        else
+            echo "  ❌ Jules CLI: not found in PATH"
+            LINT_PASSED=false
+        fi
+        
+        # 2. Check Repository Connection
+        if [[ -n "$REPO" ]]; then
+            if command -v jules >/dev/null 2>&1; then
+                CONNECTED_REPOS=$(jules remote list --repo 2>/dev/null || true)
+                if echo "$CONNECTED_REPOS" | grep -q "$REPO"; then
+                    echo "  ✅ Repository: '$REPO' is connected to Jules"
+                else
+                    echo "  ⚠️  Repository: '$REPO' not found in connected repos list"
+                    echo "     Run 'jules remote list --repo' to verify"
+                fi
+            fi
+        else
+            echo "  ℹ️  Repository: none specified (syntax: jules-gate lint <owner/repo> [prompt_file])"
+        fi
+        
+        # 3. Check Prompt File if provided
+        if [[ -n "$PROMPT_FILE" ]]; then
+            if [[ -f "$PROMPT_FILE" ]]; then
+                PROMPT_SIZE=$(wc -c < "$PROMPT_FILE" | tr -d ' ')
+                echo "  ✅ Prompt File: '$PROMPT_FILE' exists ($PROMPT_SIZE bytes)"
+                if grep -qiE "target|file|path|test|assert|verify" "$PROMPT_FILE"; then
+                    echo "  ✅ Contract Specification: Bounded file paths or acceptance tests detected"
+                else
+                    echo "  ⚠️  Contract Specification: Consider specifying exact target files or tests in prompt"
+                fi
+            else
+                echo "  ❌ Prompt File: '$PROMPT_FILE' not found"
+                LINT_PASSED=false
+            fi
+        fi
+        
+        # 4. Check Local Test Runner
+        TEST_RUNNER="none"
+        if [[ -f "pyproject.toml" || -f "pytest.ini" || -f "requirements.txt" || -n "$(find . -maxdepth 2 -name 'test_*.py' 2>/dev/null | head -n 1)" ]]; then
+            TEST_RUNNER="pytest / python unittest"
+        elif [[ -f "package.json" ]]; then
+            TEST_RUNNER="npm test"
+        elif [[ -f "Cargo.toml" ]]; then
+            TEST_RUNNER="cargo test"
+        elif [[ -f "go.mod" ]]; then
+            TEST_RUNNER="go test"
+        fi
+        echo "  ✅ Project Test Runner: $TEST_RUNNER detected"
+        
+        echo "=========================================================="
+        if [[ "$LINT_PASSED" == "true" ]]; then
+            echo "🎉 Pre-flight checks passed! Ready for cloud dispatch."
+            exit 0
+        else
+            echo "❌ Pre-flight checks failed. Please fix above errors before dispatch."
+            exit 1
+        fi
         ;;
     ps|list)
         if command -v jules >/dev/null 2>&1; then

@@ -51,7 +51,7 @@ else
     log_fail "jules-gate help failed to output command summary"
 fi
 
-for subcmd in wait verify merge pr ps status; do
+for subcmd in wait verify merge pr ps status lint; do
     if echo "$HELP_OUT" | grep -q "$subcmd"; then
         log_pass "Subcommand '$subcmd' documented in help output"
     else
@@ -61,8 +61,8 @@ done
 
 STATUS_OUT=$("$GATE_BIN" status 2>&1 || true)
 EXPECTED_VER=$(grep '"version"' "$PLUGIN_ROOT/plugin.json" | head -n 1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
-if [[ "$EXPECTED_VER" != "2.5.0" ]]; then
-    log_fail "Expected version 2.5.0 in plugin.json, got $EXPECTED_VER"
+if [[ "$EXPECTED_VER" != "2.6.0" ]]; then
+    log_fail "Expected version 2.6.0 in plugin.json, got $EXPECTED_VER"
 fi
 if echo "$STATUS_OUT" | grep -q "$EXPECTED_VER"; then
     log_pass "jules-gate status outputs plugin version ($EXPECTED_VER)"
@@ -74,6 +74,13 @@ if echo "$STATUS_OUT" | grep -q "Jules CLI:"; then
     log_pass "jules-gate status outputs Jules CLI status"
 else
     log_fail "jules-gate status missing Jules CLI status"
+fi
+
+LINT_OUT=$("$GATE_BIN" lint 2>&1 || true)
+if echo "$LINT_OUT" | grep -q "Pre-Dispatch Contract Linter"; then
+    log_pass "jules-gate lint executes and prints contract linter header"
+else
+    log_fail "jules-gate lint failed to print contract linter header"
 fi
 
 # ------------------------------------------------------------

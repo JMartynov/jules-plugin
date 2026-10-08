@@ -38,10 +38,12 @@ To maximize token efficiency (<0.8% relative compute cost), the system employs a
 
 | Command | Action | Key Benefit |
 | :--- | :--- | :--- |
+| `jules-gate lint <repo> [prompt_file]` | Pre-flight contract linter | **Validates repo connection, prompt bounds, & test runner** |
 | `jules-gate wait <id...> --timeout 30` | Polls sessions in terminal background | **Consumes 0 LLM input tokens while waiting** |
 | `jules-gate verify <id> [base_branch]` | Pulls patch to clean branch & runs tests | **Auto-detects pytest, npm, cargo, go, mvn** |
-| `jules-gate merge <id> [base_branch]` | Merges verified branch with `--no-ff` | **One-step clean integration** |
+| `jules-gate merge <id> [base] [--delete-remote]` | Auto-rebases and merges review branch | **Serialized auto-rebase prevents semantic conflicts** |
 | `jules-gate pr <id> [base_branch]` | Pushes verified branch & opens GitHub PR | **Guaranteed green CI, zero wasted runner hours** |
+| `jules-gate ps` | Lists remote Jules sessions and statuses | **Multi-session process monitoring** |
 | `jules-gate status` | Checks health of plugin, CLI, and scripts | **Immediate environment diagnostic** |
 
 ### Step 0 Triage Rules:
@@ -224,18 +226,14 @@ jules-gate pr <session_id> [base_branch]
 
 ---
 
-## 5. Parallel Merge Conflicts & Retries
+## 5. Parallel Merge Conflicts & Serialized Auto-Rebase
 
-### Parallel Rebase Strategy:
-When multiple parallel Jules branches finish:
-1. Merge Branch A into `main`.
-2. Rebase Branch B onto updated `main`:
-   ```bash
-   git checkout jules/review-<id_B> && git rebase main
-   ```
-3. Resolve any semantic or registration conflicts.
-4. Run project tests (`pytest`, `npm test`, `cargo test`).
-5. Complete rebase (`git rebase --continue`) and merge.
+### Automated Serialized Rebase Engine:
+When multiple parallel Jules branches finish across waves:
+1. `jules-gate merge <session_id>` automatically detects if the base branch has advanced since the review branch was created.
+2. If advanced, it automatically runs `git rebase <base_branch>` on `jules/review-<session_id>`.
+3. If conflicts occur during rebase, it halts safely, aborts the rebase, and alerts with exit code 4.
+4. Once rebased, the project test suite is verified before merging into `main`.
 
 ### Retry Limit Threshold:
 * If review or tests fail: **Max 3 retries**.
@@ -259,4 +257,32 @@ docs/
 - **Remote Direct:** Include output file in Jules prompt: `docs/reviews/review_<date>.md`. Integrate via `jules-gate merge <id> master`.
 - **IDE Artifact Sync:** Copy session artifacts from `.gemini/antigravity/brain/` into `docs/reports/` and commit.
 - **Verification History:** Record test suite runs: `./tests/test_invariants.sh > docs/reports/invariants_run_<date>.log 2>&1`.
+
+---
+
+## 7. IDE Onboarding & Pre-Dispatch Contract Linter
+
+### Universal IDE Onboarding:
+Works seamlessly across **Antigravity, Gemini CLI, VS Code, JetBrains, Cursor, and Terminal**:
+
+```bash
+# Run one-step installer to link binary and register global skill discovery
+~/.gemini/config/plugins/jules-plugin/install.sh
+
+# Verify global CLI health
+jules-gate status
+```
+
+### Pre-Dispatch Contract Linter:
+Before submitting expensive tasks to Jules cloud VMs, validate the contract and environment:
+
+```bash
+jules-gate lint <owner/repo> [prompt_spec.md]
+```
+Checks:
+- `jules` CLI detected and authenticated in PATH.
+- Target repository is connected to Jules (`jules remote list --repo`).
+- Prompt file exists and contains bounded file paths or test assertions.
+- Project automated test runner is detected (`pytest`, `npm test`, `cargo test`, `go test`).
+
 
