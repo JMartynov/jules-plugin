@@ -1,6 +1,6 @@
-# Google Jules (EULIS) Task Controller Plugin (Version 2.2)
+# Google Jules (EULIS) Task Controller Plugin (Version 2.3.0)
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](plugin.json)
+[![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)](plugin.json)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](README.md)
 [![Status](https://img.shields.io/badge/status-active-success.svg)](https://github.com/JMartynov/jules-plugin)
 
@@ -21,12 +21,14 @@ An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Design
 
 ---
 
-## 🌟 What's New in Version 2.2
+## 🌟 What's New in Version 2.3.0
 
-* **Mandatory Sub-Agent Isolation (`rules/AGENTS.md`):** Prevents primary thread token explosion by enforcing sub-agent delegation (`Model: 'flash'`) for all testing, polling, and integration loops.
-* **Automated Task Separation Engine:** Decouples complex requests into **Component A (Cloud EULIS)** for core domain logic & mock tests, and **Component B (Local Agent)** for local secrets & database wiring.
-* **Multi-Modal Delegation:** Standardized workflows to offload **Code Reviews**, **Exploratory Spikes**, and **30+ Fuzz/Stress Tests** directly to Jules.
-* **Universal CLI (`jules-gate`):** Includes `status`, `wait`, `verify`, `merge`, and `pr` commands across all IDEs and terminals.
+* **`jules-gate ps` Command:** Native way to query running, completed, and failed cloud sessions directly through the wrapper.
+* **Automated GitHub Actions CI Matrix:** `.github/workflows/ci.yml` running invariants across macOS and Ubuntu runners.
+* **Test failure log redaction:** `tail -n 40` cap in `scripts/worktree_gate.sh` to prevent test log bloat.
+* **Remote branch cleanup:** `jules-gate merge <session_id> --delete-remote` flag to clean up dangling tracking branches.
+* **Portable POSIX Support:** Portable inline replacements in `tests/test_invariants.sh` to ensure compatibility across macOS and Ubuntu.
+* **Sub-agent Delegation Architecture:** Empirical 98.8% primary context token savings benchmark.
 
 ---
 
@@ -115,8 +117,9 @@ The universal orchestrator CLI is installed in your system PATH at `/Users/ivan/
 | **`status`** | `jules-gate status` | Checks health of plugin, version, and script executable permissions. |
 | **`wait`** | `jules-gate wait <id...> [--timeout M]` | Polls one or more sessions every 30s. Consumes **0 LLM tokens** while waiting. |
 | **`verify`** | `jules-gate verify <id> [base_branch]` | Pulls patch to `jules/review-<id>`, applies diff, runs auto-detected tests, and reports pass/fail. |
-| **`merge`** | `jules-gate merge <id> [base_branch]` | Executes `verify`, merges into base branch with `--no-ff`, and deletes the review branch. |
+| **`merge`** | `jules-gate merge <id> [base] [--delete-remote]` | Executes `verify`, merges into base branch with `--no-ff`, and deletes the review branch (and optionally the remote branch). |
 | **`pr`** | `jules-gate pr <id> [base_branch]` | Executes `verify`, pushes branch to origin, and opens a GitHub PR via `gh pr create`. |
+| **`ps`** | `jules-gate ps [flags]` | Lists remote Jules sessions, linked repositories, and their execution statuses. |
 | **`help`** | `jules-gate help` | Displays available commands and usage guide. |
 
 ---
@@ -127,7 +130,7 @@ The universal orchestrator CLI is installed in your system PATH at `/Users/ivan/
 jules-plugin/
 ├── .gitignore                               # Clean git tracking (ignores .jules/, *.patch)
 ├── LICENSE                                  # Apache License 2.0
-├── README.md                                # Comprehensive guide & architecture (v2.2)
+├── README.md                                # Comprehensive guide & architecture (v2.3.0)
 ├── RUNBOOK.md                               # In-Depth Operational Runbook & Playbooks
 ├── install.sh                               # Global installer script
 ├── plugin.json                              # Manifest (v2.2.0)
