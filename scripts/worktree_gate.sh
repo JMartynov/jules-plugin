@@ -89,10 +89,15 @@ fi
 
 if [[ -n "$TEST_CMD" ]]; then
     echo "==> Running local verification: $TEST_CMD"
-    if $TEST_CMD; then
+    TEST_LOG=$(mktemp "/tmp/jules-test-XXXXXX.log")
+    if $TEST_CMD > "$TEST_LOG" 2>&1; then
         echo "✅ All tests passed on branch $REVIEW_BRANCH!"
+        rm -f "$TEST_LOG"
     else
         echo "❌ Tests failed on branch $REVIEW_BRANCH. Reverting changes."
+        echo "--- [Test Failure Summary (Last 40 lines)] ---"
+        tail -n 40 "$TEST_LOG"
+        rm -f "$TEST_LOG"
         git checkout -f "$BASE_BRANCH"
         git branch -D "$REVIEW_BRANCH" 2>/dev/null || true
         rm -rf "$PATCH_FILE"

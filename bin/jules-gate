@@ -29,9 +29,10 @@ Usage: jules-gate <command> [arguments...]
 Commands:
   wait <session_id...> [--timeout MINS]  Poll and wait for Jules session(s) with ZERO LLM token cost.
   verify <session_id> [base_branch]      Pull patch, checkout isolated review branch, run tests, and gate.
-  merge <session_id> [base_branch]       Verify and merge review branch into target branch (fast-forward or no-ff).
+  merge <session_id> [base] [--delete-remote] Verify and merge review branch into target branch.
   pr <session_id> [base_branch]          Verify and push review branch, opening a verified GitHub PR via `gh`.
-  status                                 Check and display plugin version and core script statuses.
+  ps [flags]                             List remote Jules sessions and statuses.
+  status                                 Check and display plugin version, scripts, and Jules CLI status.
   help                                   Show this help message.
 EOF
     exit 1
@@ -53,7 +54,22 @@ case "$CMD" in
         ;;
     merge)
         SESSION_ID="$1"
-        BASE_BRANCH="${2:-$(git branch --show-current 2>/dev/null || echo 'main')}"
+        shift
+        BASE_BRANCH=""
+        DELETE_REMOTE=false
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --delete-remote)
+                    DELETE_REMOTE=true
+                    shift
+                    ;;
+                *)
+                    BASE_BRANCH="$1"
+                    shift
+                    ;;
+            esac
+        done
+        BASE_BRANCH="${BASE_BRANCH:-$(git branch --show-current 2>/dev/null || echo 'main')}"
         REVIEW_BRANCH="jules/review-${SESSION_ID}"
         
         "$SCRIPTS_DIR/worktree_gate.sh" "$SESSION_ID" "$BASE_BRANCH"
@@ -63,6 +79,10 @@ case "$CMD" in
         git merge --no-ff "$REVIEW_BRANCH" -m "merge(jules): integrate verified changes from session $SESSION_ID"
         git branch -d "$REVIEW_BRANCH"
         echo "✅ Successfully merged and cleaned up $REVIEW_BRANCH"
+        if [[ "$DELETE_REMOTE" == "true" ]]; then
+            echo "==> Deleting remote review branch origin/$REVIEW_BRANCH if present..."
+            git push origin --delete "$REVIEW_BRANCH" 2>/dev/null || true
+        fi
         ;;
     pr)
         SESSION_ID="$1"
@@ -75,6 +95,14 @@ case "$CMD" in
         git push -u origin "$REVIEW_BRANCH"
         gh pr create --base "$BASE_BRANCH" --head "$REVIEW_BRANCH" --title "feat(jules): session $SESSION_ID" --body "Automated verified changes from Jules session $SESSION_ID."
         echo "✅ Pull request successfully created!"
+        ;;
+    ps|list)
+        if command -v jules >/dev/null 2>&1; then
+            exec jules remote list --session "$@"
+        else
+            echo "❌ Error: jules CLI is not installed or not in PATH."
+            exit 1
+        fi
         ;;
     status)
         PLUGIN_JSON=""
@@ -93,6 +121,11 @@ case "$CMD" in
         WORKTREE_GATE_SCRIPT="$SCRIPTS_DIR/worktree_gate.sh"
 
         echo "Plugin version: $VERSION"
+        JULES_CLI="not found in PATH"
+        if command -v jules >/dev/null 2>&1; then
+            JULES_CLI="$(command -v jules)"
+        fi
+        echo "Jules CLI: $JULES_CLI"
         echo "Scripts:"
 
         ALL_EXEC=true

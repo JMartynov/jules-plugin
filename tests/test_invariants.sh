@@ -51,7 +51,7 @@ else
     log_fail "jules-gate help failed to output command summary"
 fi
 
-for subcmd in wait verify merge pr; do
+for subcmd in wait verify merge pr ps status; do
     if echo "$HELP_OUT" | grep -q "$subcmd"; then
         log_pass "Subcommand '$subcmd' documented in help output"
     else
@@ -65,6 +65,12 @@ if echo "$STATUS_OUT" | grep -q "$EXPECTED_VER"; then
     log_pass "jules-gate status outputs plugin version ($EXPECTED_VER)"
 else
     log_fail "jules-gate status failed to output plugin version"
+fi
+
+if echo "$STATUS_OUT" | grep -q "Jules CLI:"; then
+    log_pass "jules-gate status outputs Jules CLI status"
+else
+    log_fail "jules-gate status missing Jules CLI status"
 fi
 
 # ------------------------------------------------------------
@@ -170,12 +176,12 @@ chmod +x "$MOCK_DIR/jules"
 export PATH="$MOCK_DIR:$PATH"
 
 # Generate valid patch (improves code, tests still pass)
-sed -i '' 's/return a + b/return a + b  # verified/' calc.py
+python3 -c "f = open('calc.py', 'r'); c = f.read(); open('calc.py', 'w').write(c.replace('return a + b', 'return a + b  # verified'))"
 git diff calc.py > "$LOG_DIR/valid.patch"
 git checkout -f calc.py
 
 # Generate failing test patch (breaks logic: add returns a - b)
-sed -i '' 's/return a + b/return a - b/' calc.py
+python3 -c "f = open('calc.py', 'r'); c = f.read(); open('calc.py', 'w').write(c.replace('return a + b', 'return a - b'))"
 git diff calc.py > "$LOG_DIR/failing_test.patch"
 git checkout -f calc.py
 
