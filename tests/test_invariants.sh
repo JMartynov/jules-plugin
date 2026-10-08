@@ -61,6 +61,9 @@ done
 
 STATUS_OUT=$("$GATE_BIN" status 2>&1 || true)
 EXPECTED_VER=$(grep '"version"' "$PLUGIN_ROOT/plugin.json" | head -n 1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
+if [[ "$EXPECTED_VER" != "2.5.0" ]]; then
+    log_fail "Expected version 2.5.0 in plugin.json, got $EXPECTED_VER"
+fi
 if echo "$STATUS_OUT" | grep -q "$EXPECTED_VER"; then
     log_pass "jules-gate status outputs plugin version ($EXPECTED_VER)"
 else
@@ -74,7 +77,7 @@ else
 fi
 
 # ------------------------------------------------------------
-# INVARIANT 2: Dynamic Multi-Tier Documentation
+# INVARIANT 2: Dynamic Multi-Tier Documentation & 4-Stage Lifecycle Guardrails
 # ------------------------------------------------------------
 echo ""
 echo "--- [Invariant 2: Multi-Tier Model Routing Docs] ---"
@@ -89,6 +92,26 @@ if grep -q "tiered routing" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md"
     log_pass "skills/jules-task-controller/SKILL.md documents multi-tiered routing"
 else
     log_fail "skills/jules-task-controller/SKILL.md is missing tiered routing documentation"
+fi
+
+# Ensure Strict No-Polling rule is codified
+if grep -q -i "no-polling" "$PLUGIN_ROOT/rules/AGENTS.md"; then
+    log_pass "rules/AGENTS.md contains Strict No-Polling directive"
+else
+    log_fail "rules/AGENTS.md missing Strict No-Polling directive"
+fi
+
+if grep -q -i "no-polling" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md"; then
+    log_pass "skills/jules-task-controller/SKILL.md contains Strict No-Polling directive"
+else
+    log_fail "skills/jules-task-controller/SKILL.md missing Strict No-Polling directive"
+fi
+
+# Ensure Research sub-agent pattern is codified
+if grep -q -i "research sub-agent" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md"; then
+    log_pass "skills/jules-task-controller/SKILL.md contains Research sub-agent pattern"
+else
+    log_fail "skills/jules-task-controller/SKILL.md missing Research sub-agent pattern"
 fi
 
 # ------------------------------------------------------------

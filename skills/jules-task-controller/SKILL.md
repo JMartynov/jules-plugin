@@ -2,11 +2,11 @@
 name: jules-task-controller
 description: >-
   Orchestrate Google Jules (EULIS) coding tasks with mandatory sub-agent execution, automated task splitting,
-  multi-modal delegation (features, code reviews, tests, research spikes), zero-token polling, and gated verification (Version 2.4.0).
+  multi-modal delegation (features, code reviews, tests, research spikes), zero-token polling, and gated verification (Version 2.5.0).
   Use whenever planning, splitting, delegating, or verifying tasks assigned to Jules / EULIS across any programming language.
 ---
 
-# Jules Task Controller (Version 2.4.0)
+# Jules Task Controller (Version 2.5.0)
 
 An enterprise orchestrator for **Google Jules (EULIS)**. Designed to maximize delegation across all software engineering workflows while strictly enforcing **sub-agent isolation** to eliminate token bloat (empirically proven to save **>99.5% of main-thread tokens** through Dynamic Multi-Tier Model Routing).
 
@@ -145,6 +145,10 @@ EOF
 
 ## 3. Sub-Agent Execution Protocol (MANDATORY EXECUTION PATH)
 
+> [!CAUTION]
+> **Strict No-Polling Directive for Sub-Agents:**
+> Sub-agents (especially `flash_lite`) must **NEVER** invoke `schedule` or `poll` in a loop with `manage_task` or `jules-gate ps` while `jules-gate wait` is running. Once `jules-gate wait` is launched, **stop calling tools** and let the platform wake you up automatically upon task exit.
+
 When orchestrating any Jules task or verification suite:
 
 ```
@@ -158,6 +162,12 @@ When orchestrating any Jules task or verification suite:
               ├── 4. Integrates branch: `jules-gate merge <session_id>`
               └── 5. Returns final message to Primary Agent
 ```
+
+### Pre-Dispatch Research Sub-Agent Pattern:
+When the user requests broad codebase exploration or workflow inspection, spawn a research sub-agent (Model: `flash`) to explore files and return a concise synthesis. This keeps the primary Pro context under 10k tokens.
+
+### Post-Verification Reporting Delegation:
+Instruct Tier 2 Analytic Verifier sub-agents (Model: `flash`) to generate and commit markdown reports directly under `docs/reports/` before returning their final summary.
 
 ### Invocation Parameters:
 

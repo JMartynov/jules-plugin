@@ -1,6 +1,6 @@
-# Google Jules (EULIS) Task Controller Plugin (Version 2.4.0)
+# Google Jules (EULIS) Task Controller Plugin (Version 2.5.0)
 
-[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](plugin.json)
+[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](plugin.json)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](README.md)
 [![Status](https://img.shields.io/badge/status-active-success.svg)](https://github.com/JMartynov/jules-plugin)
 
@@ -21,6 +21,14 @@ An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Design
 
 ---
 
+## 🌟 What's New in Version 2.5.0
+
+* **Strict No-Polling Directive:** Prevented the 945k token Sub-Agent Polling Tax by strictly prohibiting loop-based tool calls when `jules-gate wait` is running.
+* **4-Stage Lifecycle Token Insulation:** Updated routing to a 4-stage lifecycle ensuring the primary thread never runs out of context.
+* **Pre-Dispatch Research Sub-Agent Pattern:** Introduced a pattern to spawn a research sub-agent (`flash`) before execution to summarize code context and save tokens.
+* **Post-Verification Reporting Delegation:** Verifier sub-agents (`flash`) now generate and commit markdown reports natively before concluding.
+* **Version Bump:** Bumped overarching plugin functionality to 2.5.0.
+
 ## 🌟 What's New in Version 2.4.0
 
 * **Dynamic Multi-Tier Model Routing:** Introduced 3-tier routing (`flash_lite` mechanical worker, `flash` analytic verifier, `pro` cognitive architect) sparing >99.5% tokens.
@@ -35,43 +43,42 @@ An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Design
 
 ## 🎯 The Core Philosophy: Maximize Delegation
 
+```mermaid
+sequenceDiagram
+    participant Pro as Cognitive Architect (Pro)
+    participant Research as Research Sub-Agent (flash)
+    participant Lite as Mechanical Worker (flash_lite)
+    participant Flash as Analytic Verifier (flash)
+    participant OS as Background Daemon (Tier 0)
+    
+    %% Stage 1: Pre-Dispatch Research
+    Pro->>Research: Pre-Dispatch Research Request
+    Research-->>Pro: Concise Synthesis Report (Saves context)
+    
+    %% Stage 3 (Stage 2 is Pro formulating): Mechanical Execution
+    Pro->>Lite: Invoke Mechanical Sub-Agent
+    Lite->>OS: jules remote new
+    Lite->>OS: jules-gate wait (Strict No-Polling loop)
+    OS-->>Lite: Wait completes
+    Lite-->>Pro: Session ID Status
+    
+    %% Stage 4: Analytic Verification & Reporting
+    Pro->>Flash: Invoke Analytic Sub-Agent
+    Flash->>OS: jules-gate verify
+    OS-->>Flash: Test Results
+    Flash->>OS: jules-gate merge (if pass)
+    Flash->>OS: write docs/reports/verification.md
+    Flash-->>Pro: Final Summary
 ```
-[ User Request in IDE ]
-           │
-           ▼
-[ Step 0: Delegation Feasibility & Task Splitter ]
-   ├── Fully Delegatable ────────► Component A: 100% to Jules via Sub-Agent
-   ├── Partially Delegatable ────► Split: Component A (Jules) + Component B (Local)
-   └── Strictly Local ───────────► Execute on Local IDE Thread
-                                                │
-       ┌────────────────────────────────────────┘
-       ▼
-[ Step 1: Multi-Modal Delegation Modes ]
-   ├── Mode 1: Feature / Parser Implementation
-   ├── Mode 2: Delegated Code Review & Security Audit
-   ├── Mode 3: Exploratory Research Spike / Prototype
-   └── Mode 4: Edge-Case & Fuzz Test Suite Synthesis
-                               │
-       ┌───────────────────────┘
-       ▼
-[ Step 2: MANDATORY Sub-Agent Dispatch (`Model: 'flash_lite'`, `TypeName: 'self'`) ]
-   ├── Starts session: `jules remote new --repo <owner/repo>`
-   └── Sleeps token-free: `jules-gate wait <session_id>`
-           │
-           ▼ (Remote VM finishes)
-[ Step 3: Gated Verification (`jules-gate verify <id>`) ]
-   ├── Pulls patch to isolated review branch (`jules/review-<id>`)
-   ├── Auto-detects test runner (pytest, npm, cargo, go, mvn, gradle)
-   └── Tests pass?
-         ├── [NO]  ──► Reverts cleanly without corrupting base branch
-         └── [YES] ──► Proceeds to Step 4
-                               │
-       ┌───────────────────────┘
-       ▼
-[ Step 4: Integration Strategy ]
-   ├── Solo / Internal Project ──► `jules-gate merge <id>` (Fast-track --no-ff merge)
-   └── Team / Protected Repo   ──► `jules-gate pr <id>` (Opens verified PR via gh CLI)
-```
+
+### The Sub-Agent Polling Tax Case Study
+In prior audits, we found that even when delegating to sub-agents, if a sub-agent attempted to aggressively poll (`jules-gate ps` or `manage_task`) in a tight schedule loop during a background `jules-gate wait`, it could still burn up to **945k tokens**. By introducing a **Strict No-Polling Directive**, once a sub-agent invokes `jules-gate wait`, it must stop calling tools and simply wait to be awoken by the IDE. This prevents the "Polling Tax".
+
+### Pre-Dispatch Research Sub-Agent Pattern:
+When the user requests broad codebase exploration or workflow inspection, spawn a research sub-agent (Model: `flash`) to explore files and return a concise synthesis. This keeps the primary Pro context under 10k tokens.
+
+### Post-Verification Reporting Delegation:
+Instruct Tier 2 Analytic Verifier sub-agents (Model: `flash`) to generate and commit markdown reports directly under `docs/reports/` before returning their final summary.
 
 ---
 
