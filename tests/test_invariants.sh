@@ -51,7 +51,7 @@ else
     log_fail "jules-gate help failed to output command summary"
 fi
 
-for subcmd in wait verify merge pr ps status lint; do
+for subcmd in wait verify merge pr ps status lint tokens; do
     if echo "$HELP_OUT" | grep -q "$subcmd"; then
         log_pass "Subcommand '$subcmd' documented in help output"
     else
@@ -61,8 +61,8 @@ done
 
 STATUS_OUT=$("$GATE_BIN" status 2>&1 || true)
 EXPECTED_VER=$(grep '"version"' "$PLUGIN_ROOT/plugin.json" | head -n 1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
-if [[ "$EXPECTED_VER" != "2.6.0" ]]; then
-    log_fail "Expected version 2.6.0 in plugin.json, got $EXPECTED_VER"
+if [[ "$EXPECTED_VER" != "2.7.0" ]]; then
+    log_fail "Expected version 2.7.0 in plugin.json, got $EXPECTED_VER"
 fi
 if echo "$STATUS_OUT" | grep -q "$EXPECTED_VER"; then
     log_pass "jules-gate status outputs plugin version ($EXPECTED_VER)"
@@ -81,6 +81,32 @@ if echo "$LINT_OUT" | grep -q "Pre-Dispatch Contract Linter"; then
     log_pass "jules-gate lint executes and prints contract linter header"
 else
     log_fail "jules-gate lint failed to print contract linter header"
+fi
+
+# Complexity heuristic check in jules-gate lint
+TMP_P=$(mktemp "/tmp/short_prompt-XXXXXX.txt")
+echo "Fix typo in doc" > "$TMP_P"
+LINT_HEURISTIC_OUT=$("$GATE_BIN" lint "" "$TMP_P" 2>&1 || true)
+rm -f "$TMP_P"
+if echo "$LINT_HEURISTIC_OUT" | grep -q "Candidate for Local Efficiency Override"; then
+    log_pass "jules-gate lint complexity heuristic flags concise micro-prompt"
+else
+    log_fail "jules-gate lint failed to flag concise micro-prompt"
+fi
+
+# Token telemetry checks
+TOKENS_OUT=$("$GATE_BIN" tokens 2>&1 || true)
+if echo "$TOKENS_OUT" | grep -q "Token Economy & Sparing Telemetry"; then
+    log_pass "jules-gate tokens executes and outputs telemetry summary"
+else
+    log_fail "jules-gate tokens failed to output telemetry summary"
+fi
+
+TOKENS_JSON=$("$GATE_BIN" tokens --json 2>&1 || true)
+if echo "$TOKENS_JSON" | grep -q '"estimated_tokens_spared"'; then
+    log_pass "jules-gate tokens --json outputs valid JSON metrics"
+else
+    log_fail "jules-gate tokens --json failed to output JSON metrics"
 fi
 
 # ------------------------------------------------------------

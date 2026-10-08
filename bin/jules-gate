@@ -32,6 +32,7 @@ Commands:
   merge <session_id> [base] [--no-rebase] [--delete-remote] Verify, auto-rebase, and merge review branch.
   pr <session_id> [base_branch]          Verify and push review branch, opening a verified GitHub PR via `gh`.
   lint <repo> [prompt_file]              Pre-flight contract linter to validate repo connection and prompt spec.
+  tokens [--json] [--reset]              Display cumulative estimated tokens spared across sessions.
   ps [flags]                             List remote Jules sessions and statuses.
   status                                 Check and display plugin version, scripts, and Jules CLI status.
   help                                   Show this help message.
@@ -168,11 +169,28 @@ case "$CMD" in
         if [[ -n "$PROMPT_FILE" ]]; then
             if [[ -f "$PROMPT_FILE" ]]; then
                 PROMPT_SIZE=$(wc -c < "$PROMPT_FILE" | tr -d ' ')
-                echo "  ✅ Prompt File: '$PROMPT_FILE' exists ($PROMPT_SIZE bytes)"
+                NON_EMPTY_LINES=$(grep -c '[^[:space:]]' "$PROMPT_FILE" || true)
+                echo "  ✅ Prompt File: '$PROMPT_FILE' exists ($PROMPT_SIZE bytes, $NON_EMPTY_LINES non-empty lines)"
                 if grep -qiE "target|file|path|test|assert|verify" "$PROMPT_FILE"; then
                     echo "  ✅ Contract Specification: Bounded file paths or acceptance tests detected"
                 else
                     echo "  ⚠️  Contract Specification: Consider specifying exact target files or tests in prompt"
+                fi
+
+                # Automated Line-Count / Complexity Heuristic (Local Efficiency Override Check)
+                if [[ "$NON_EMPTY_LINES" -le 2 ]]; then
+                    echo "  ⚡ Efficiency Notice: Prompt is very concise ($NON_EMPTY_LINES lines)."
+                    echo "     Candidate for Local Efficiency Override if this is a trivial 1-line syntax/import/config fix."
+                    echo "     Direct local execution on the IDE thread may consume fewer tokens than cloud VM dispatch."
+                fi
+
+                # If prompt is a patch/diff file, inspect diff line count
+                if [[ "$PROMPT_FILE" == *.patch || "$PROMPT_FILE" == *.diff ]] || grep -q "^@@ " "$PROMPT_FILE" 2>/dev/null; then
+                    DIFF_LINES=$(grep -c '^[+-][^+-]' "$PROMPT_FILE" || true)
+                    if [[ "$DIFF_LINES" -gt 0 && "$DIFF_LINES" -le 3 ]]; then
+                        echo "  ⚡ Efficiency Notice: Patch targets only $DIFF_LINES lines of diff."
+                        echo "     Candidate for Local Efficiency Override (cloud dispatch may consume more tokens than local edit)."
+                    fi
                 fi
             else
                 echo "  ❌ Prompt File: '$PROMPT_FILE' not found"
@@ -201,6 +219,109 @@ case "$CMD" in
             echo "❌ Pre-flight checks failed. Please fix above errors before dispatch."
             exit 1
         fi
+        ;;
+    tokens)
+        JSON_OUTPUT=false
+        RESET=false
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --json)
+                    JSON_OUTPUT=true
+                    shift
+                    ;;
+                --reset)
+                    RESET=true
+                    shift
+                    ;;
+                *)
+                    shift
+                    ;;
+            esac
+        done
+
+        TELEMETRY_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/jules-gate"
+        TELEMETRY_FILE="$TELEMETRY_DIR/telemetry.log"
+
+        if [[ "$RESET" == "true" ]]; then
+            rm -f "$TELEMETRY_FILE"
+            echo "✅ Jules Gate telemetry cache has been reset."
+            exit 0
+        fi
+
+        # Count remote completed sessions if jules CLI is available
+        REMOTE_COMPLETED=0
+        if command -v jules >/dev/null 2>&1; then
+            REMOTE_SESSIONS=$(jules remote list --session 2>/dev/null || true)
+            if [[ -n "$REMOTE_SESSIONS" ]]; then
+                REMOTE_COMPLETED=$(echo "$REMOTE_SESSIONS" | grep -c "Completed" || true)
+            fi
+        fi
+
+        # Parse local telemetry cache
+        LOCAL_VERIFIED=0
+        LOCAL_MERGED=0
+        TOTAL_ADDED=0
+        TOTAL_REMOVED=0
+        CACHED_TOKENS_SAVED=0
+
+        if [[ -f "$TELEMETRY_FILE" ]]; then
+            while IFS='|' read -r ts sid repo status added removed tokens; do
+                [[ -z "$sid" ]] && continue
+                if [[ "$status" == "verified" ]]; then
+                    LOCAL_VERIFIED=$(( LOCAL_VERIFIED + 1 ))
+                elif [[ "$status" == "merged" ]]; then
+                    LOCAL_MERGED=$(( LOCAL_MERGED + 1 ))
+                fi
+                TOTAL_ADDED=$(( TOTAL_ADDED + ${added:-0} ))
+                TOTAL_REMOVED=$(( TOTAL_REMOVED + ${removed:-0} ))
+                CACHED_TOKENS_SAVED=$(( CACHED_TOKENS_SAVED + ${tokens:-0} ))
+            done < "$TELEMETRY_FILE"
+        fi
+
+        # Extrapolate savings for completed remote sessions
+        if [[ "$REMOTE_COMPLETED" -gt "$LOCAL_VERIFIED" ]]; then
+            DELTA=$(( REMOTE_COMPLETED - LOCAL_VERIFIED ))
+            EXTRAPOLATED_SAVINGS=$(( DELTA * 35000 ))
+            ESTIMATED_TOTAL_TOKENS=$(( CACHED_TOKENS_SAVED + EXTRAPOLATED_SAVINGS ))
+        else
+            ESTIMATED_TOTAL_TOKENS="$CACHED_TOKENS_SAVED"
+        fi
+
+        TOTAL_DIFF_LINES=$(( TOTAL_ADDED + TOTAL_REMOVED ))
+        ESTIMATED_USD=$(awk -v t="$ESTIMATED_TOTAL_TOKENS" 'BEGIN { printf "%.2f", (t / 1000000) * 5.0 }')
+
+        if [[ "$JSON_OUTPUT" == "true" ]]; then
+            cat << EOF
+{
+  "remote_completed_sessions": $REMOTE_COMPLETED,
+  "local_verified_sessions": $LOCAL_VERIFIED,
+  "local_merged_sessions": $LOCAL_MERGED,
+  "lines_added_spared": $TOTAL_ADDED,
+  "lines_removed_spared": $TOTAL_REMOVED,
+  "total_diff_lines_spared": $TOTAL_DIFF_LINES,
+  "estimated_tokens_spared": $ESTIMATED_TOTAL_TOKENS,
+  "estimated_usd_value": $ESTIMATED_USD
+}
+EOF
+            exit 0
+        fi
+
+        echo "=========================================================="
+        echo " [Jules Gate] Token Economy & Sparing Telemetry"
+        echo "=========================================================="
+        echo "  📊 Session Counts:"
+        echo "     • Remote Completed Sessions:  $REMOTE_COMPLETED"
+        echo "     • Locally Verified Patches:   $LOCAL_VERIFIED"
+        echo "     • Merged Review Branches:     $LOCAL_MERGED"
+        echo ""
+        echo "  ⚡ Code & Line Sparing:"
+        echo "     • Total Diff Lines Spared:    $TOTAL_DIFF_LINES (+$TOTAL_ADDED / -$TOTAL_REMOVED)"
+        echo ""
+        echo "  💰 Cumulative Savings:"
+        echo "     • Estimated Tokens Spared:    ~$ESTIMATED_TOTAL_TOKENS tokens"
+        echo "     • Estimated Compute Value:    ~\$$ESTIMATED_USD USD"
+        echo "=========================================================="
+        echo "  Tip: Run 'jules-gate tokens --json' for machine-readable output"
         ;;
     ps|list)
         if command -v jules >/dev/null 2>&1; then

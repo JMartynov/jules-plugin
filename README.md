@@ -1,6 +1,6 @@
-# Google Jules (EULIS) Task Controller Plugin (Version 2.6.0)
+# Google Jules (EULIS) Task Controller Plugin (Version 2.7.0)
 
-[![Version](https://img.shields.io/badge/version-2.6.0-blue.svg)](plugin.json)
+[![Version](https://img.shields.io/badge/version-2.7.0-blue.svg)](plugin.json)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](README.md)
 [![Status](https://img.shields.io/badge/status-active-success.svg)](https://github.com/JMartynov/jules-plugin)
 
@@ -21,12 +21,12 @@ An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Design
 
 ---
 
-## 🌟 What's New in Version 2.6.0
+## 🌟 What's New in Version 2.7.0
 
+* **Token Economy Telemetry (`jules-gate tokens`):** Added a dedicated command to visualize cumulative tokens and estimated compute dollars spared across remote and local sessions, featuring ASCII summary and `--json` export.
+* **Pre-Dispatch Complexity & Line-Count Heuristics:** `jules-gate lint` flags tasks with prompt specifications shorter than ~2 lines or targeting <3 lines of diff as *"Candidate for Local Efficiency Override"* to prevent inadvertent cloud dispatches of micro-fixes.
+* **Enshrined Dynamic Efficiency Override (Local Option):** Enforced economic triage rule in `SKILL.md` and `rules/AGENTS.md` choosing fast local IDE execution when delegation overhead exceeds local token cost.
 * **Serialized Auto-Rebase Engine:** `jules-gate merge` automatically detects when the target branch has advanced, rebasing parallel Jules branches sequentially to prevent semantic regressions.
-* **Pre-Dispatch Contract Linter:** New `jules-gate lint <repo> [prompt]` command validates repo connection, prompt contract bounds, and local test runners before cloud submission.
-* **Test Failure Diagnostic Sieve:** Enhanced `worktree_gate.sh` to extract failing test assertions and stack traces directly before applying the `tail -n 40` log cap.
-* **Strict Primary-Context Exploration & Board Ban:** Enforced operational rule prohibiting multi-file local sweeps and board enrichments on the primary `pro` context, mandating sub-agent execution.
 * **Universal IDE Onboarding:** Streamlined one-step onboarding across Antigravity, VS Code, JetBrains, Cursor, and Terminal.
 
 ---
@@ -133,6 +133,8 @@ The universal orchestrator CLI is installed in your system PATH at `/Users/ivan/
 
 | Command | Syntax | Description |
 | :--- | :--- | :--- |
+| **`lint`** | `jules-gate lint <repo> [prompt]` | Pre-flight contract linter & complexity heuristic check. |
+| **`tokens`** | `jules-gate tokens [--json] [--reset]` | Displays cumulative estimated tokens and compute dollars spared across sessions. |
 | **`status`** | `jules-gate status` | Checks health of plugin, version, and script executable permissions. |
 | **`wait`** | `jules-gate wait <id...> [--timeout M]` | Polls one or more sessions every 30s. Consumes **0 LLM tokens** while waiting. |
 | **`verify`** | `jules-gate verify <id> [base_branch]` | Pulls patch to `jules/review-<id>`, applies diff, runs auto-detected tests, and reports pass/fail. |

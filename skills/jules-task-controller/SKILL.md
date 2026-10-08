@@ -2,11 +2,11 @@
 name: jules-task-controller
 description: >-
   Orchestrate Google Jules (EULIS) coding tasks with mandatory sub-agent execution, automated task splitting,
-  multi-modal delegation (features, code reviews, tests, research spikes), zero-token polling, and gated verification (Version 2.6.0).
+  multi-modal delegation (features, code reviews, tests, research spikes), zero-token polling, and gated verification (Version 2.7.0).
   Use whenever planning, splitting, delegating, or verifying tasks assigned to Jules / EULIS across any programming language.
 ---
 
-# Jules Task Controller (Version 2.6.0)
+# Jules Task Controller (Version 2.7.0)
 
 An enterprise orchestrator for **Google Jules (EULIS)**. Designed to maximize delegation across all software engineering workflows while strictly enforcing **sub-agent isolation** to eliminate token bloat (empirically proven to save **>99.5% of main-thread tokens** through Dynamic Multi-Tier Model Routing).
 
@@ -42,7 +42,8 @@ To maximize token efficiency (<0.8% relative compute cost), the system employs a
 
 | Command | Action | Key Benefit |
 | :--- | :--- | :--- |
-| `jules-gate lint <repo> [prompt_file]` | Pre-flight contract linter | **Validates repo connection, prompt bounds, & test runner** |
+| `jules-gate lint <repo> [prompt_file]` | Pre-flight contract linter & complexity checker | **Validates connection, bounds, and flags trivial micro-tasks** |
+| `jules-gate tokens [--json] [--reset]` | Token economy telemetry | **Reports cumulative tokens and dollars spared across sessions** |
 | `jules-gate wait <id...> --timeout 30` | Polls sessions in terminal background | **Consumes 0 LLM input tokens while waiting** |
 | `jules-gate verify <id> [base_branch]` | Pulls patch to clean branch & runs tests | **Auto-detects pytest, npm, cargo, go, mvn** |
 | `jules-gate merge <id> [base] [--delete-remote]` | Auto-rebases and merges review branch | **Serialized auto-rebase prevents semantic conflicts** |

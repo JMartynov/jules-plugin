@@ -1,6 +1,6 @@
 # Jules Task Controller: Operational Runbook
 
-**Version:** 2.6.0  
+**Version:** 2.7.0  
 **Target Audience:** Software Engineers, DevOps, Autonomous AI Agents (Antigravity / Gemini IDE, Claude Code, Cursor, JetBrains, VS Code)  
 **System Repository:** [`https://github.com/JMartynov/jules-plugin`](https://github.com/JMartynov/jules-plugin)
 
@@ -19,6 +19,7 @@
 10. [Parallel Execution & Merge Conflict Playbook](#10-parallel-execution--merge-conflict-playbook)
 11. [Troubleshooting & Failure Modes](#11-troubleshooting--failure-modes)
 12. [Pre-Dispatch Contract Linter & Serialized Auto-Rebase](#12-pre-dispatch-contract-linter--serialized-auto-rebase)
+13. [Token Economy Telemetry & Complexity Heuristics](#13-token-economy-telemetry--complexity-heuristics)
 
 ---
 
@@ -440,7 +441,7 @@ main branch ───┤
 
 ---
 
-## 12. Troubleshooting & Failure Modes
+## 11. Troubleshooting & Failure Modes
 
 ### 1. `jules-gate status` reports errors
 * Run `~/.gemini/config/plugins/jules-plugin/install.sh` to refresh executable permissions and PATH symlinks.
@@ -470,6 +471,7 @@ jules-gate lint <owner/repo> [path/to/prompt_spec.md]
 * **Jules CLI Availability:** Checks that `/opt/homebrew/bin/jules` or system `jules` binary is installed and executable.
 * **Connected Repository Validation:** Queries `jules remote list --repo` to confirm that the target repository is actively connected and authorized.
 * **Contract Specification Bounds:** Inspects the prompt file to confirm that specific target file paths and acceptance test criteria are defined.
+* **Automated Line-Count / Complexity Heuristics:** Flags prompt specifications shorter than ~2 lines or targeting <3 lines of diff as *"Candidate for Local Efficiency Override"* to prevent inadvertent cloud dispatches of micro-fixes.
 * **Test Runner Detection:** Detects project test suites (`pytest`, `npm test`, `cargo test`, `go test`) to ensure automated gating will succeed upon patch arrival.
 
 ### 2. Serialized Auto-Rebase Engine (`jules-gate merge`)
@@ -482,3 +484,19 @@ jules-gate merge <session_id> [base_branch] [--no-rebase] [--delete-remote]
 * **Auto-Detection:** Automatically compares `git merge-base` between `jules/review-<id>` and `base_branch`. If `base_branch` has advanced, it rebases the review branch onto `base_branch`.
 * **Conflict Prevention:** If a semantic or textual conflict occurs during rebase, it safely aborts (`git rebase --abort`) and alerts with exit code 4, preventing corrupt merges.
 * **Automated Cleanup:** With `--delete-remote`, it automatically deletes the tracking branch on origin once merged cleanly.
+
+---
+
+## 13. Token Economy Telemetry & Sparing Reporting
+
+The `jules-gate tokens` command provides cumulative visibility into engineering tokens and compute dollars spared by delegating code generation and using zero-token background watchers:
+
+```bash
+jules-gate tokens [--json] [--reset]
+```
+
+**Features:**
+* **Real-Time Sparing Summary:** Reports total remote completed sessions, locally verified patches, and diff lines spared.
+* **Machine-Readable Telemetry:** Use `jules-gate tokens --json` for automated reporting or dashboard ingestion.
+* **Automatic Cache Tracking:** Every time `jules-gate verify` or `jules-gate merge` runs, patch metrics and spared tokens are logged to `~/.cache/jules-gate/telemetry.log`.
+* **Cache Management:** Run `jules-gate tokens --reset` to clear the local telemetry log.

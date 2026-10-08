@@ -1,12 +1,12 @@
-# Jules Task Controller v2.6.0 Implementation Details
+# Jules Task Controller v2.7.0 Implementation Details
 
-This document comprehensively outlines the architectural changes, features, and optimizations introduced in **Version 2.6.0** of the Jules Task Controller.
+This document comprehensively outlines the architectural changes, features, and optimizations introduced in **Version 2.7.0** of the Jules Task Controller.
 
 ---
 
 ## 1. 4-Stage Lifecycle Token Insulation (>99.5% Token Savings)
 
-The v2.6.0 architecture evolves the system into an enterprise **4-stage multi-tier orchestration system** that dynamically routes tasks to the most efficient model, sparing over 99.5% of main-thread tokens.
+The v2.7.0 architecture evolves the system into an enterprise **4-stage multi-tier orchestration system** that dynamically routes tasks to the most efficient model, sparing over 99.5% of main-thread tokens.
 
 **Token Comparison Matrix:**
 | Architecture Approach | Token Cost | Notes |
@@ -16,6 +16,7 @@ The v2.6.0 architecture evolves the system into an enterprise **4-stage multi-ti
 | Tiered Routing (v2.4) | ~25,000 tokens | `flash_lite` mechanical runner + `flash` verifier. |
 | 4-Stage Lifecycle (v2.5.0) | <15,000 tokens | Pre-dispatch research + strict no-polling rules. |
 | Full 6-Layer Shield (v2.6.0) | <10,000 tokens | Serialized auto-rebase, pre-dispatch linter, strict primary sweep ban. |
+| Telemetry & Heuristics (v2.7.0) | <8,000 tokens | Token economy telemetry, pre-dispatch complexity heuristics, efficiency override. |
 
 ### Dynamic Efficiency Threshold (Local Execution Override)
 The core philosophy is to maximize delegation to Jules to offload heavy code generation, refactoring, and test synthesis. However, if delegating a task introduces disproportionate orchestration overhead (such as 1-line syntax/import fixes, single version bumps, or quick path adjustments) where cloud VM dispatch and sub-agent coordination consume MORE tokens than a direct local edit, the orchestrator overrides delegation and executes locally on the IDE thread.
@@ -195,15 +196,30 @@ In `scripts/worktree_gate.sh`, failure output is parsed with an assertion sieve:
 - `tail -n 40` provides the immediate stack trace.
 - Eliminates 2,000+ line log dumps, protecting sub-agent context windows.
 
+## 7. v2.7.0 Enhancements: Token Telemetry & Complexity Heuristics
+
+### A. Token Economy Telemetry (`jules-gate tokens`)
+Provides empirical, machine-readable metrics for tracking compute and dollar savings achieved by offloading heavy work to Google Jules and background daemons:
+- Tracks total remote completed sessions, locally verified patches, and diff lines spared.
+- Calculates cumulative tokens spared based on code generation and zero-token background polling loops.
+- Supports `--json` for automated dashboard telemetry and CI reporting.
+- Automatically logs verified sessions to `${XDG_CACHE_HOME:-$HOME/.cache}/jules-gate/telemetry.log`.
+
+### B. Pre-Dispatch Complexity & Line-Count Heuristics (`jules-gate lint`)
+Protects against inadvertent token waste from dispatching micro-fixes to the cloud:
+- Inspects prompt specifications and flags tasks with $\le 2$ non-empty lines as *"Candidate for Local Efficiency Override"*.
+- For patch files, inspects diff lines and flags changes targeting $\le 3$ lines of diff.
+- Encourages direct local execution on the IDE thread when cloud dispatch overhead would exceed local cost.
+
 ---
 
 ## Architecture and Command Table
 
-| Component | Location | Responsibility / Change in v2.6.0 |
+| Component | Location | Responsibility / Change in v2.7.0 |
 | :--- | :--- | :--- |
-| **`jules-gate` CLI** | `bin/jules-gate` | Added `lint` pre-flight command, added serialized auto-rebase to `merge`, added `ps` session viewer. |
-| **Gated Verification** | `scripts/worktree_gate.sh` | Integrated diagnostic sieve (`grep` assertion filter) + `tail -n 40` log cap. |
-| **Invariant Suite** | `tests/test_invariants.sh` | 33 automated assertions validating CLI, rules, efficiency overrides, no-polling directives, and test runners. |
+| **`jules-gate` CLI** | `bin/jules-gate` | Added `tokens` telemetry command, added complexity heuristics to `lint`, added serialized auto-rebase to `merge`. |
+| **Gated Verification** | `scripts/worktree_gate.sh` | Integrated automated telemetry logging + diagnostic sieve (`grep` assertion filter) + `tail -n 40` log cap. |
+| **Invariant Suite** | `tests/test_invariants.sh` | 37 automated assertions validating CLI, rules, tokens telemetry, complexity heuristics, and test runners. |
 | **Token Shield** | Architecture Standard | Benchmarked >99.5% token savings across 6-layer shield. |
 | **Artifact Taxonomy** | `docs/` | Structured taxonomy for reviews, spikes, implementation, and reports. |
 

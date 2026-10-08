@@ -116,7 +116,19 @@ else
     echo "⚠️  No automated test suite detected. Changes applied and staged."
 fi
 
-# 5. Commit review branch
+# 5. Commit review branch & record telemetry
+NUMSTAT=$(git diff --numstat HEAD~1 2>/dev/null || echo "0 0")
+LINES_ADDED=$(echo "$NUMSTAT" | awk '{sum+=$1} END {print sum+0}')
+LINES_REMOVED=$(echo "$NUMSTAT" | awk '{sum+=$2} END {print sum+0}')
+DIFF_LINES=$(( LINES_ADDED + LINES_REMOVED ))
+ESTIMATED_TOKENS=$(( 35000 + DIFF_LINES * 5 ))
+
+TELEMETRY_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/jules-gate"
+mkdir -p "$TELEMETRY_DIR" 2>/dev/null || true
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%d")
+REPO_NAME=$(git config --get remote.origin.url 2>/dev/null || basename "$(pwd)")
+echo "$TIMESTAMP|$SESSION_ID|$REPO_NAME|verified|$LINES_ADDED|$LINES_REMOVED|$ESTIMATED_TOKENS" >> "$TELEMETRY_DIR/telemetry.log" 2>/dev/null || true
+
 git commit -m "jules($SESSION_ID): verified changes applied from remote session" || true
 rm -rf "$PATCH_FILE"
 
