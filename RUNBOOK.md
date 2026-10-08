@@ -1,6 +1,6 @@
 # Jules Task Controller: Operational Runbook
 
-**Version:** 2.2.0  
+**Version:** 2.3.0  
 **Target Audience:** Software Engineers, DevOps, Autonomous AI Agents (Antigravity / Gemini IDE, Claude Code, Cursor, JetBrains, VS Code)  
 **System Repository:** [`https://github.com/JMartynov/jules-plugin`](https://github.com/JMartynov/jules-plugin)
 
@@ -93,7 +93,7 @@ jules-gate status
 
 # 2. Verify Jules CLI is installed and authenticated
 which jules || npm install -g @google/jules
-jules remote list --repo
+jules-gate ps --repo
 
 # 3. Verify GitHub CLI (gh) authentication (for PR workflows)
 gh auth status
@@ -274,9 +274,9 @@ jules-gate verify <session_id> [base_branch]
 
 ### Option A: Fast-Track Merge (Solo / Internal Projects)
 ```bash
-jules-gate merge <session_id> [base_branch]
+jules-gate merge <session_id> [base_branch] [--delete-remote]
 ```
-*Merges the review branch into `<base_branch>` using `--no-ff`, removes the temporary review branch, and leaves your repository ready to push.*
+*Merges the review branch into `<base_branch>` using `--no-ff`, removes the temporary review branch, and leaves your repository ready to push. If `--delete-remote` is passed, it also cleans up any remote tracking branch for the review branch.*
 
 ### Option B: Gated Pull Request (Enterprise / Protected Teams)
 ```bash
