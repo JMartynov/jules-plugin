@@ -23,8 +23,11 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
    * **Delegated Research & Spikes:** Have Jules build prototype modules and evaluate third-party libraries in isolated branches.
    * **Delegated Test Synthesis:** Have Jules write 20–50 edge-case and fuzz tests for critical functions.
 
-4. **Mandatory Sub-Agent Execution (98.8% Token Savings):**  
+4. **3-Tier Model Execution Mandate (Dynamic Multi-Tier Model Routing - >99.5% Token Savings):**  
    * **NEVER** run Jules CLI dispatch, long-running test suites, or polling loops directly in the primary LLM context window.
-   * **ALWAYS** spawn an isolated sub-agent with `Model: 'flash'`, `TypeName: 'self'`, and `Workspace: 'inherit'`.
-   * The sub-agent executes `jules-gate wait`, `jules-gate verify`, and tests in its own ephemeral context, absorbing all polling and test output tokens.
+   * **Tier 1: `flash_lite` (Mechanical Worker):** Pure shell dispatch (`jules remote new`), zero-token polling (`jules-gate wait`), and git branch merges. Use for rote CLI operations.
+   * **Tier 2: `flash` (Analytic Verifier):** Gated testing (`jules-gate verify`), test runner triage, and lightweight patch hotfixes.
+   * **Tier 3: `pro` (Cognitive Architect):** Exclusively for Step 0 triage, contract-first prompt formulation, and escalated merge conflicts. The primary Pro agent must NEVER run shell commands, polling loops, or test runners directly.
+   * **Tier 0: OS Background Daemon:** Used for long-running non-blocking wait.
+   * The sub-agent executes in its own ephemeral context, absorbing all polling and test output tokens.
    * The primary agent must remain idle with zero tool calls until the sub-agent completes and reports back.

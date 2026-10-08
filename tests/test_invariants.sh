@@ -74,10 +74,28 @@ else
 fi
 
 # ------------------------------------------------------------
-# INVARIANT 2: Zero-Token Polling Watcher (jules_poll_wait.sh)
+# INVARIANT 2: Dynamic Multi-Tier Documentation
 # ------------------------------------------------------------
 echo ""
-echo "--- [Invariant 2: Zero-Token Polling Watcher] ---"
+echo "--- [Invariant 2: Multi-Tier Model Routing Docs] ---"
+
+if grep -q "flash_lite" "$PLUGIN_ROOT/rules/AGENTS.md"; then
+    log_pass "rules/AGENTS.md documents flash_lite tier"
+else
+    log_fail "rules/AGENTS.md is missing flash_lite tier documentation"
+fi
+
+if grep -q "tiered routing" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md" || grep -q "Multi-Tier" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md"; then
+    log_pass "skills/jules-task-controller/SKILL.md documents multi-tiered routing"
+else
+    log_fail "skills/jules-task-controller/SKILL.md is missing tiered routing documentation"
+fi
+
+# ------------------------------------------------------------
+# INVARIANT 3: Zero-Token Polling Watcher (jules_poll_wait.sh)
+# ------------------------------------------------------------
+echo ""
+echo "--- [Invariant 3: Zero-Token Polling Watcher] ---"
 
 MOCK_DIR=$(mktemp -d "/tmp/jules-mock-XXXXXX")
 cat > "$MOCK_DIR/jules" << 'EOF'
@@ -123,10 +141,10 @@ export PATH="$OLD_PATH"
 rm -rf "$MOCK_DIR"
 
 # ------------------------------------------------------------
-# INVARIANT 3: Gated Verification & Worktree Isolation
+# INVARIANT 4: Gated Verification & Worktree Isolation
 # ------------------------------------------------------------
 echo ""
-echo "--- [Invariant 3: Gated Verification (worktree_gate.sh)] ---"
+echo "--- [Invariant 4: Gated Verification (worktree_gate.sh)] ---"
 
 TEST_REPO=$(mktemp -d "/tmp/jules-test-repo-XXXXXX")
 LOG_DIR=$(mktemp -d "/tmp/jules-logs-XXXXXX")
@@ -231,10 +249,10 @@ set -e
 assert_eq "$CORRUPT_EXIT" "2" "worktree_gate exits 2 on un-applicable patch"
 
 # ------------------------------------------------------------
-# INVARIANT 4: Integration & Merging (jules-gate merge)
+# INVARIANT 5: Integration & Merging (jules-gate merge)
 # ------------------------------------------------------------
 echo ""
-echo "--- [Invariant 4: Integration & Branch Cleanup (jules-gate merge)] ---"
+echo "--- [Invariant 5: Integration & Branch Cleanup (jules-gate merge)] ---"
 
 git checkout main >/dev/null 2>&1
 set +e
@@ -259,10 +277,10 @@ else
 fi
 
 # ------------------------------------------------------------
-# INVARIANT 5: Multi-Language Runner Detection
+# INVARIANT 6: Multi-Language Runner Detection
 # ------------------------------------------------------------
 echo ""
-echo "--- [Invariant 5: Dynamic Test Runner Detection] ---"
+echo "--- [Invariant 6: Dynamic Test Runner Detection] ---"
 
 cd "$TEST_REPO"
 touch package.json
