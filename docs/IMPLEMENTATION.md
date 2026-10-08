@@ -1,12 +1,12 @@
-# Jules Task Controller v2.4.0 Implementation Details
+# Jules Task Controller v2.5.0 Implementation Details
 
-This document comprehensively outlines the architectural changes, features, and optimizations introduced in **Version 2.4.0** of the Jules Task Controller.
+This document comprehensively outlines the architectural changes, features, and optimizations introduced in **Version 2.5.0** of the Jules Task Controller.
 
 ---
 
-## 1. Dynamic Multi-Tier Model Routing (>99.5% Token Savings)
+## 1. 4-Stage Lifecycle Token Insulation (>99.5% Token Savings)
 
-The v2.4.0 architecture evolves the system into a **multi-tier orchestration system** that dynamically routes tasks to the most efficient model, sparing over 99.5% of main-thread tokens.
+The v2.5.0 architecture evolves the system into a **4-stage multi-tier orchestration system** that dynamically routes tasks to the most efficient model, sparing over 99.5% of main-thread tokens.
 
 **Token Comparison Matrix:**
 | Architecture Approach | Token Cost | Notes |
@@ -14,28 +14,46 @@ The v2.4.0 architecture evolves the system into a **multi-tier orchestration sys
 | Monolithic (No Sub-agents) | ~1,000,000 tokens | Massive bloat from polling and test logs. |
 | Uniform Flash (v2.3) | ~150,000 tokens | Sub-agent handles polling but uses heavier model. |
 | Tiered Routing (v2.4) | ~25,000 tokens | `flash_lite` mechanical runner + `flash` verifier. |
+| 4-Stage Lifecycle (v2.5.0) | <15,000 tokens | Pre-dispatch research + strict no-polling rules. |
 
-### Architecture Diagram
+### The Sub-Agent Polling Tax Case Study
+In prior audits, we found that even when delegating to sub-agents, if a sub-agent attempted to aggressively poll (`jules-gate ps` or `manage_task`) in a tight schedule loop during a background `jules-gate wait`, it could still burn up to **945k tokens**. By introducing a **Strict No-Polling Directive**, once a sub-agent invokes `jules-gate wait`, it must stop calling tools and simply wait to be awoken by the IDE. This prevents the "Polling Tax".
+
+### Architecture Diagram (4-Stage Lifecycle)
 
 ```mermaid
 sequenceDiagram
     participant Pro as Cognitive Architect (Pro)
+    participant Research as Research Sub-Agent (flash)
     participant Lite as Mechanical Worker (flash_lite)
     participant Flash as Analytic Verifier (flash)
     participant OS as Background Daemon (Tier 0)
     
+    %% Stage 1: Pre-Dispatch Research
+    Pro->>Research: Pre-Dispatch Research Request
+    Research-->>Pro: Concise Synthesis Report (Saves context)
+    
+    %% Stage 3 (Stage 2 is Pro formulating): Mechanical Execution
     Pro->>Lite: Invoke Mechanical Sub-Agent
     Lite->>OS: jules remote new
-    Lite->>OS: jules-gate wait
+    Lite->>OS: jules-gate wait (Strict No-Polling loop)
     OS-->>Lite: Wait completes
     Lite-->>Pro: Session ID Status
     
+    %% Stage 4: Analytic Verification & Reporting
     Pro->>Flash: Invoke Analytic Sub-Agent
     Flash->>OS: jules-gate verify
     OS-->>Flash: Test Results
     Flash->>OS: jules-gate merge (if pass)
-    Flash-->>Pro: Final Report
+    Flash->>OS: write docs/reports/verification.md
+    Flash-->>Pro: Final Summary
 ```
+
+### Pre-Dispatch Research Sub-Agent Pattern:
+When the user requests broad codebase exploration or workflow inspection, spawn a research sub-agent (Model: `flash`) to explore files and return a concise synthesis. This keeps the primary Pro context under 10k tokens.
+
+### Post-Verification Reporting Delegation:
+Instruct Tier 2 Analytic Verifier sub-agents (Model: `flash`) to generate and commit markdown reports directly under `docs/reports/` before returning their final summary.
 
 ### Sub-Agent Invocation Examples
 

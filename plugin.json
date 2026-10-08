@@ -1,7 +1,7 @@
 {
   "name": "jules-plugin",
-  "version": "2.4.0",
-  "description": "Enterprise Google Jules (EULIS) orchestrator featuring Dynamic Multi-Tier Model Routing (flash_lite / flash / pro) sparing >99.5% tokens, multi-session management, automated task splitting, zero-token polling, and gated verification.",
+  "version": "2.5.0",
+  "description": "Enterprise Google Jules (EULIS) orchestrator featuring Dynamic Multi-Tier Model Routing (flash_lite / flash / pro) sparing >99.5% tokens, multi-session management, automated task splitting, zero-token polling, gated verification, sub-agent no-polling guardrails and 4-stage lifecycle insulation.",
   "author": {
     "name": "Ivan"
   }

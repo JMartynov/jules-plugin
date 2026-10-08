@@ -23,11 +23,14 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
    * **Delegated Research & Spikes:** Have Jules build prototype modules and evaluate third-party libraries in isolated branches.
    * **Delegated Test Synthesis:** Have Jules write 20–50 edge-case and fuzz tests for critical functions.
 
-4. **3-Tier Model Execution Mandate (Dynamic Multi-Tier Model Routing - >99.5% Token Savings):**  
+4. **4-Stage Lifecycle Token Insulation (Dynamic Multi-Tier Model Routing - >99.5% Token Savings):**  
    * **NEVER** run Jules CLI dispatch, long-running test suites, or polling loops directly in the primary LLM context window.
-   * **Tier 1: `flash_lite` (Mechanical Worker):** Pure shell dispatch (`jules remote new`), zero-token polling (`jules-gate wait`), and git branch merges. Use for rote CLI operations.
-   * **Tier 2: `flash` (Analytic Verifier):** Gated testing (`jules-gate verify`), test runner triage, and lightweight patch hotfixes.
-   * **Tier 3: `pro` (Cognitive Architect):** Exclusively for Step 0 triage, contract-first prompt formulation, and escalated merge conflicts. The primary Pro agent must NEVER run shell commands, polling loops, or test runners directly.
-   * **Tier 0: OS Background Daemon:** Used for long-running non-blocking wait.
+   * **Stage 1: Pre-Dispatch Research (`flash`):** For broad codebase exploration or workflow inspection, spawn a research sub-agent to explore files and return a concise synthesis.
+   * **Stage 2: Cognitive Architecture (`pro`):** Exclusively for Step 0 triage, contract-first prompt formulation, and escalated merge conflicts. The primary Pro agent must NEVER run shell commands, polling loops, or test runners directly.
+   * **Stage 3: Mechanical Execution (`flash_lite`):** Pure shell dispatch (`jules remote new`), zero-token polling (`jules-gate wait`), and git branch merges. Use for rote CLI operations.
+   * **Stage 4: Analytic Verification & Reporting (`flash`):** Gated testing (`jules-gate verify`), test runner triage, lightweight patch hotfixes, and generating/committing markdown reports directly under `docs/reports/` before returning the final summary.
    * The sub-agent executes in its own ephemeral context, absorbing all polling and test output tokens.
    * The primary agent must remain idle with zero tool calls until the sub-agent completes and reports back.
+
+5. **Strict No-Polling Directive for Sub-Agents:**
+   Sub-agents (especially `flash_lite`) must **NEVER** invoke `schedule` or `poll` in a loop with `manage_task` or `jules-gate ps` while `jules-gate wait` is running. Once `jules-gate wait` is launched, **stop calling tools** and let the platform wake you up automatically upon task exit.

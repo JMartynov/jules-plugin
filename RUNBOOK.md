@@ -1,6 +1,6 @@
 # Jules Task Controller: Operational Runbook
 
-**Version:** 2.4.0  
+**Version:** 2.5.0  
 **Target Audience:** Software Engineers, DevOps, Autonomous AI Agents (Antigravity / Gemini IDE, Claude Code, Cursor, JetBrains, VS Code)  
 **System Repository:** [`https://github.com/JMartynov/jules-plugin`](https://github.com/JMartynov/jules-plugin)
 
@@ -23,35 +23,34 @@
 
 ## 1. Architecture & Workflow Overview
 
-The Jules Task Controller implements a **tri-tier hybrid orchestration architecture** designed to maximize developer throughput and minimize token consumption:
+The Jules Task Controller implements a **4-stage multi-tier orchestration architecture** designed to maximize developer throughput and minimize token consumption:
 
-```
-                      ┌──────────────────────────────────────┐
-                      │        Main Orchestrator (IDE)       │
-                      │  • Always-On Policy (rules/AGENTS.md)│
-                      │  • Task Splitting & Decomposition    │
-                      └──────────────────┬───────────────────┘
-                                         │ Spawns isolated worker
-                                         ▼
-                      ┌──────────────────────────────────────┐
-                      │  MANDATORY Sub-Agent (`flash`)       │
-                      │  • Dispatches `jules remote new`     │
-                      │  • Runs `jules-gate wait` (0 tokens) │
-                      │  • Runs `jules-gate verify` & tests  │
-                      └──────────────────┬───────────────────┘
-                                         │ Single summary report
-                                         ▼
-                      ┌──────────────────────────────────────┐
-                      │       `jules-gate verify` Gate       │
-                      │  • Pulls patch to isolated branch    │
-                      │  • Auto-runs local test suite        │
-                      └──────────────────┬───────────────────┘
-                                         │
-                        ┌────────────────┴────────────────┐
-                        ▼                                 ▼
-         [Tests Passed: Local/Solo]            [Tests Passed: Team/Protected]
-           `jules-gate merge <id>`                 `jules-gate pr <id>`
-            (Fast-forward / --no-ff)                (Verified GitHub PR via gh)
+```mermaid
+sequenceDiagram
+    participant Pro as Cognitive Architect (Pro)
+    participant Research as Research Sub-Agent (flash)
+    participant Lite as Mechanical Worker (flash_lite)
+    participant Flash as Analytic Verifier (flash)
+    participant OS as Background Daemon (Tier 0)
+    
+    %% Stage 1: Pre-Dispatch Research
+    Pro->>Research: Pre-Dispatch Research Request
+    Research-->>Pro: Concise Synthesis Report (Saves context)
+    
+    %% Stage 3 (Stage 2 is Pro formulating): Mechanical Execution
+    Pro->>Lite: Invoke Mechanical Sub-Agent
+    Lite->>OS: jules remote new
+    Lite->>OS: jules-gate wait (Strict No-Polling loop)
+    OS-->>Lite: Wait completes
+    Lite-->>Pro: Session ID Status
+    
+    %% Stage 4: Analytic Verification & Reporting
+    Pro->>Flash: Invoke Analytic Sub-Agent
+    Flash->>OS: jules-gate verify
+    OS-->>Flash: Test Results
+    Flash->>OS: jules-gate merge (if pass)
+    Flash->>OS: write docs/reports/verification.md
+    Flash-->>Pro: Final Summary
 ```
 
 ---
@@ -65,6 +64,16 @@ The Jules Task Controller implements a **tri-tier hybrid orchestration architect
 * **Primary Thread Execution:** Polling 20 times in a 100k context burned **~1,000,000 tokens**.
 * **Uniform Flash Execution (v2.3):** Delegating the exact same lifecycle to a background sub-agent running on `Model: 'flash'` consumed **~150,000 tokens**.
 * **Tiered Routing Execution (v2.4):** Using `flash_lite` mechanical runner + `flash` verifier consumes **~25,000 tokens**—a **>99.5% token reduction**.
+* **4-Stage Lifecycle (v2.5.0):** Pre-dispatch research + strict no-polling rules consumes **<15,000 tokens**.
+
+### The Sub-Agent Polling Tax Case Study
+In prior audits, we found that even when delegating to sub-agents, if a sub-agent attempted to aggressively poll (`jules-gate ps` or `manage_task`) in a tight schedule loop during a background `jules-gate wait`, it could still burn up to **945k tokens**. By introducing a **Strict No-Polling Directive**, once a sub-agent invokes `jules-gate wait`, it must stop calling tools and simply wait to be awoken by the IDE. This prevents the "Polling Tax".
+
+### Pre-Dispatch Research Sub-Agent Pattern:
+When the user requests broad codebase exploration or workflow inspection, spawn a research sub-agent (Model: `flash`) to explore files and return a concise synthesis. This keeps the primary Pro context under 10k tokens.
+
+### Post-Verification Reporting Delegation:
+Instruct Tier 2 Analytic Verifier sub-agents (Model: `flash`) to generate and commit markdown reports directly under `docs/reports/` before returning their final summary.
 
 ### Sub-Agent Invocation Protocol:
 The primary agent calls `invoke_subagent` and immediately halts tool calls.
