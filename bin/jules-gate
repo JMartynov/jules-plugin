@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# jules-gate - Universal CLI orchestrator and verification gate for Google Jules
+# Works universally across Antigravity, Gemini, VS Code, JetBrains, Cursor, and Terminal.
+
+set -euo pipefail
+
+# Resolve script directory (handling symlinks)
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+ROOT_DIR="$( cd -P "$( dirname "$SOURCE" )/.." >/dev/null 2>&1 && pwd )"
+
+if [[ -d "$ROOT_DIR/scripts" ]]; then
+    SCRIPTS_DIR="$ROOT_DIR/scripts"
+elif [[ -d "$HOME/.gemini/config/plugins/jules-plugin/scripts" ]]; then
+    SCRIPTS_DIR="$HOME/.gemini/config/plugins/jules-plugin/scripts"
+else
+    echo "❌ Error: Could not locate jules-plugin scripts directory."
+    exit 1
+fi
+
+usage() {
+    cat << 'EOF'
+Usage: jules-gate <command> [arguments...]
+
+Commands:
+  wait <session_id...> [--timeout MINS]  Poll and wait for Jules session(s) with ZERO LLM token cost.
+  verify <session_id> [base_branch]      Pull patch, checkout isolated review branch, run tests, and gate.
+  merge <session_id> [base_branch]       Verify and merge review branch into target branch (fast-forward or no-ff).
+  pr <session_id> [base_branch]          Verify and push review branch, opening a verified GitHub PR via `gh`.
+  help                                   Show this help message.
+EOF
+    exit 1
+}
+
+if [[ $# -lt 1 ]]; then
+    usage
+fi
+
+CMD="$1"
+shift
+
+case "$CMD" in
+    wait)
+        exec "$SCRIPTS_DIR/jules_poll_wait.sh" "$@"
+        ;;
+    verify)
+        exec "$SCRIPTS_DIR/worktree_gate.sh" "$@"
+        ;;
+    merge)
+        SESSION_ID="$1"
+        BASE_BRANCH="${2:-$(git branch --show-current 2>/dev/null || echo 'main')}"
+        REVIEW_BRANCH="jules/review-${SESSION_ID}"
+        
+        "$SCRIPTS_DIR/worktree_gate.sh" "$SESSION_ID" "$BASE_BRANCH"
+        
+        echo "==> Merging $REVIEW_BRANCH into $BASE_BRANCH..."
+        git checkout "$BASE_BRANCH"
+        git merge --no-ff "$REVIEW_BRANCH" -m "merge(jules): integrate verified changes from session $SESSION_ID"
+        git branch -d "$REVIEW_BRANCH"
+        echo "✅ Successfully merged and cleaned up $REVIEW_BRANCH"
+        ;;
+    pr)
+        SESSION_ID="$1"
+        BASE_BRANCH="${2:-$(git branch --show-current 2>/dev/null || echo 'main')}"
+        REVIEW_BRANCH="jules/review-${SESSION_ID}"
+        
+        "$SCRIPTS_DIR/worktree_gate.sh" "$SESSION_ID" "$BASE_BRANCH"
+        
+        echo "==> Pushing $REVIEW_BRANCH and creating Pull Request..."
+        git push -u origin "$REVIEW_BRANCH"
+        gh pr create --base "$BASE_BRANCH" --head "$REVIEW_BRANCH" --title "feat(jules): session $SESSION_ID" --body "Automated verified changes from Jules session $SESSION_ID."
+        echo "✅ Pull request successfully created!"
+        ;;
+    -h|--help|help)
+        usage
+        ;;
+    *)
+        echo "Unknown command: $CMD"
+        usage
+        ;;
+esac
