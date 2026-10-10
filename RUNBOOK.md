@@ -1,6 +1,6 @@
 # Jules Task Controller: Operational Runbook
 
-**Version:** 2.7.0  
+**Version:** 2.8.0  
 **Target Audience:** Software Engineers, DevOps, Autonomous AI Agents (Antigravity / Gemini IDE, Claude Code, Cursor, JetBrains, VS Code)  
 **System Repository:** [`https://github.com/JMartynov/jules-plugin`](https://github.com/JMartynov/jules-plugin)
 
@@ -20,6 +20,7 @@
 11. [Troubleshooting & Failure Modes](#11-troubleshooting--failure-modes)
 12. [Pre-Dispatch Contract Linter & Serialized Auto-Rebase](#12-pre-dispatch-contract-linter--serialized-auto-rebase)
 13. [Token Economy Telemetry & Complexity Heuristics](#13-token-economy-telemetry--complexity-heuristics)
+14. [Cloud Session Lifecycle Transparency & Web Management](#14-cloud-session-lifecycle-transparency--web-management)
 
 ---
 
@@ -500,3 +501,30 @@ jules-gate tokens [--json] [--reset]
 * **Machine-Readable Telemetry:** Use `jules-gate tokens --json` for automated reporting or dashboard ingestion.
 * **Automatic Cache Tracking:** Every time `jules-gate verify` or `jules-gate merge` runs, patch metrics and spared tokens are logged to `~/.cache/jules-gate/telemetry.log`.
 * **Cache Management:** Run `jules-gate tokens --reset` to clear the local telemetry log.
+
+---
+
+## 14. Cloud Session Lifecycle Transparency & Web Management
+
+Google Jules uses asynchronous Cloud VMs that transition through distinct states:
+```
+[QUEUED] ➔ [RUNNING] ➔ [AWAITING USER FEEDBACK] ➔ [COMPLETED / PR CREATED]
+```
+
+### Operational Rules for `Awaiting User Feedback`:
+1. **Patch Delivery Guarantee:** Both `Completed` and `Awaiting User Feedback` indicate that the remote model has finished code generation and packaged the git patch. The patch is 100% complete and can be pulled immediately via `jules remote pull --session <session_id>`.
+2. **Browser Quick-Launch (`jules-gate web`):**
+   ```bash
+   # Open specific task in default web browser
+   jules-gate web 4086817754911393812
+
+   # Open Jules dashboard
+   jules-gate web
+   ```
+3. **Closing vs. Iterating Sessions:**
+   - **On Pass:** When `jules-gate verify` passes local tests, merge the branch into `main`. The user may accept or close the task in the web UI at convenience.
+   - **On Test Failure:** If local tests fail, reply to the session with pytest stack traces. Jules continues working within the existing Cloud VM without incurring the overhead of a fresh session.
+4. **Prompt Optimization (Non-Interactive Directive):**
+   To avoid Jules pausing in `Awaiting User Feedback` when self-contained tasks finish, always include:
+   > *"Implement all requested changes, verify with tests, and finalize your response directly with a summary without asking open-ended questions so the session cleanly transitions to Completed."*
+

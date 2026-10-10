@@ -27,7 +27,7 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
 4. **4-Stage Lifecycle Token Insulation (Dynamic Multi-Tier Model Routing - >99.5% Token Savings):**  
    * **NEVER** run Jules CLI dispatch, long-running test suites, or polling loops directly in the primary LLM context window.
    * **Stage 1: Pre-Dispatch Research (`flash`):** For broad codebase exploration or workflow inspection, spawn a research sub-agent to explore files and return a concise synthesis.
-   * **Stage 2: Cognitive Architecture (`pro`):** Exclusively for Step 0 triage, contract-first prompt formulation, and escalated merge conflicts. The primary Pro agent must NEVER run shell commands, polling loops, or test runners directly.
+   * **Stage 2: Cognitive Architecture (`pro`):** Exclusively for Step 0 triage, contract-first prompt formulation, and escalated merge conflicts. The primary Pro agent must NEVER run shell commands, polling loops, or test runners directly. Prompts formulated MUST include the Non-Interactive Completion Directive (instructing Jules to finalize directly without asking open-ended questions so the remote VM cleanly transitions to `Completed`).
    * **Stage 3: Mechanical Execution (`flash_lite`):** Pure shell dispatch (`jules remote new`), zero-token polling (`jules-gate wait`), and git branch merges. Use for rote CLI operations.
    * **Stage 4: Analytic Verification & Reporting (`flash`):** Gated testing (`jules-gate verify`), test runner triage, lightweight patch hotfixes, capturing token savings via `jules-gate tokens --json`, and generating/committing markdown reports directly under `docs/reports/` before returning the final summary.
    * The sub-agent executes in its own ephemeral context, absorbing all polling and test output tokens.
@@ -39,3 +39,8 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
 6. **Strict Ban on Primary-Context Multi-File Sweeps & Board Enrichment:**
    * **Pre-Dispatch Exploration**: The primary Pro agent is strictly prohibited from running multi-file codebase explorations locally. If the user asks to "inspect", "explore", or "investigate" a repository, the agent MUST immediately spawn a `research` sub-agent (`Model: 'flash'`).
    * **Post-Dispatch Reporting & Boards**: Multi-card GitHub Project Board enrichment (`gh project`) and detailed report authoring MUST be offloaded to an ephemeral `flash` sub-agent. The primary agent only renders the final summary and links.
+
+7. **Cloud Session Lifecycle Transparency & Feedback Protocol:**
+   * **Dual Patch-Ready States:** Google Jules sessions yield complete patches in both `Completed` and `Awaiting User Feedback` states. In both cases, patches can be pulled immediately via `jules remote pull --session <id>`.
+   * **Zero Feedback on Pass:** If local verification passes, merge changes immediately. No feedback is needed; the operator may accept or dismiss the web session on `https://jules.google.com/task/<id>` or via `jules-gate web <id>`.
+   * **In-VM Iteration on Failure:** If local tests fail, reply to the session with pytest stack traces to let Jules repair the patch within the existing VM, avoiding the token cost of a new session.

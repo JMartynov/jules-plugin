@@ -33,6 +33,7 @@ Commands:
   pr <session_id> [base_branch]          Verify and push review branch, opening a verified GitHub PR via `gh`.
   lint <repo> [prompt_file]              Pre-flight contract linter to validate repo connection and prompt spec.
   tokens [--json] [--reset]              Display cumulative estimated tokens spared across sessions.
+  web [session_id]                       Open Jules session or dashboard in the default browser.
   ps [flags]                             List remote Jules sessions and statuses.
   status                                 Check and display plugin version, scripts, and Jules CLI status.
   help                                   Show this help message.
@@ -108,6 +109,8 @@ case "$CMD" in
         git merge --no-ff "$REVIEW_BRANCH" -m "merge(jules): integrate verified changes from session $SESSION_ID"
         git branch -d "$REVIEW_BRANCH"
         echo "✅ Successfully merged and cleaned up $REVIEW_BRANCH"
+        echo "🌐 Jules Web Task: https://jules.google.com/task/$SESSION_ID"
+        echo "💡 Tip: If this session is in 'Awaiting User Feedback' on jules.google.com, you can safely Accept or Close it."
         if [[ "$DELETE_REMOTE" == "true" ]]; then
             echo "==> Deleting remote review branch origin/$REVIEW_BRANCH if present..."
             git push origin --delete "$REVIEW_BRANCH" 2>/dev/null || true
@@ -141,6 +144,7 @@ All tests passed on isolated review branch \`$REVIEW_BRANCH\` against base \`$BA
 
 ---
 ⚡ **Verified by Jules Gate:** \`~$SESSION_TOKENS tokens spared\` (+$LINES_ADDED / -$LINES_REMOVED lines across isolated review worktree)
+🌐 **Google Jules Web Task:** https://jules.google.com/task/$SESSION_ID
 EOF
 )
         
@@ -148,6 +152,7 @@ EOF
         git push -u origin "$REVIEW_BRANCH"
         gh pr create --base "$BASE_BRANCH" --head "$REVIEW_BRANCH" --title "feat(jules): session $SESSION_ID" --body "$PR_BODY"
         echo "✅ Pull request successfully created!"
+        echo "🌐 Jules Web Task: https://jules.google.com/task/$SESSION_ID"
         ;;
     lint|check)
         REPO="${1:-}"
@@ -209,6 +214,13 @@ EOF
                         echo "     Candidate for Local Efficiency Override (cloud dispatch may consume more tokens than local edit)."
                     fi
                 fi
+
+                # Non-Interactive Conclusion Directive Check
+                if grep -qiE "do not ask|non-interactive|without asking|finalize directly" "$PROMPT_FILE"; then
+                    echo "  ✅ Completion Directive: Non-interactive conclusion directive detected"
+                else
+                    echo "  💡 Completion Tip: Add 'Finalize without asking open-ended questions' to avoid session staying in 'Awaiting User Feedback'"
+                fi
             else
                 echo "  ❌ Prompt File: '$PROMPT_FILE' not found"
                 LINT_PASSED=false
@@ -265,14 +277,17 @@ EOF
             exit 0
         fi
 
-        # Count remote completed sessions if jules CLI is available
+        # Count remote completed and awaiting feedback sessions if jules CLI is available
         REMOTE_COMPLETED=0
+        REMOTE_AWAITING=0
         if command -v jules >/dev/null 2>&1; then
             REMOTE_SESSIONS=$(jules remote list --session 2>/dev/null || true)
             if [[ -n "$REMOTE_SESSIONS" ]]; then
                 REMOTE_COMPLETED=$(echo "$REMOTE_SESSIONS" | grep -c "Completed" || true)
+                REMOTE_AWAITING=$(echo "$REMOTE_SESSIONS" | grep -c "Awaiting User" || true)
             fi
         fi
+        TOTAL_REMOTE_DELIVERED=$(( REMOTE_COMPLETED + REMOTE_AWAITING ))
 
         # Parse local telemetry cache
         LOCAL_VERIFIED=0
@@ -295,9 +310,9 @@ EOF
             done < "$TELEMETRY_FILE"
         fi
 
-        # Extrapolate savings for completed remote sessions
-        if [[ "$REMOTE_COMPLETED" -gt "$LOCAL_VERIFIED" ]]; then
-            DELTA=$(( REMOTE_COMPLETED - LOCAL_VERIFIED ))
+        # Extrapolate savings for delivered remote sessions
+        if [[ "$TOTAL_REMOTE_DELIVERED" -gt "$LOCAL_VERIFIED" ]]; then
+            DELTA=$(( TOTAL_REMOTE_DELIVERED - LOCAL_VERIFIED ))
             EXTRAPOLATED_SAVINGS=$(( DELTA * 35000 ))
             ESTIMATED_TOTAL_TOKENS=$(( CACHED_TOKENS_SAVED + EXTRAPOLATED_SAVINGS ))
         else
@@ -311,6 +326,8 @@ EOF
             cat << EOF
 {
   "remote_completed_sessions": $REMOTE_COMPLETED,
+  "remote_awaiting_feedback_sessions": $REMOTE_AWAITING,
+  "remote_total_delivered_sessions": $TOTAL_REMOTE_DELIVERED,
   "local_verified_sessions": $LOCAL_VERIFIED,
   "local_merged_sessions": $LOCAL_MERGED,
   "lines_added_spared": $TOTAL_ADDED,
@@ -327,7 +344,8 @@ EOF
         echo " [Jules Gate] Token Economy & Sparing Telemetry"
         echo "=========================================================="
         echo "  📊 Session Counts:"
-        echo "     • Remote Completed Sessions:  $REMOTE_COMPLETED"
+        echo "     • Remote Completed Sessions:  $REMOTE_COMPLETED (auto-closed)"
+        echo "     • Remote Awaiting Feedback:   $REMOTE_AWAITING (patch ready, awaiting web UI close)"
         echo "     • Locally Verified Patches:   $LOCAL_VERIFIED"
         echo "     • Merged Review Branches:     $LOCAL_MERGED"
         echo ""
@@ -339,6 +357,21 @@ EOF
         echo "     • Estimated Compute Value:    ~\$$ESTIMATED_USD USD"
         echo "=========================================================="
         echo "  Tip: Run 'jules-gate tokens --json' for machine-readable output"
+        echo "  Tip: Run 'jules-gate web [session_id]' to open web task in browser"
+        ;;
+    web|open)
+        SESSION_ID="${1:-}"
+        if [[ -n "$SESSION_ID" ]]; then
+            URL="https://jules.google.com/task/$SESSION_ID"
+        else
+            URL="https://jules.google.com"
+        fi
+        echo "🌐 Opening Jules Web Task: $URL"
+        if command -v open >/dev/null 2>&1; then
+            open "$URL" 2>/dev/null || true
+        elif command -v xdg-open >/dev/null 2>&1; then
+            xdg-open "$URL" 2>/dev/null || true
+        fi
         ;;
     ps|list)
         if command -v jules >/dev/null 2>&1; then

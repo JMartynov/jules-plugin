@@ -1,6 +1,6 @@
-# Google Jules (EULIS) Task Controller Plugin (Version 2.7.0)
+# Google Jules (EULIS) Task Controller Plugin (Version 2.8.0)
 
-[![Version](https://img.shields.io/badge/version-2.7.0-blue.svg)](plugin.json)
+[![Version](https://img.shields.io/badge/version-2.8.0-blue.svg)](plugin.json)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](README.md)
 [![Status](https://img.shields.io/badge/status-active-success.svg)](https://github.com/JMartynov/jules-plugin)
 
@@ -21,15 +21,12 @@ An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Design
 
 ---
 
-## 🌟 What's New in Version 2.7.0
+## 🌟 What's New in Version 2.8.0
 
-* **Token Economy Telemetry (`jules-gate tokens`):** Added a dedicated command to visualize cumulative tokens and estimated compute dollars spared across remote and local sessions, featuring ASCII summary and `--json` export.
-* **Automated GitHub PR Telemetry Badges:** `jules-gate pr` calculates session review branch diff metrics and embeds an efficiency badge (e.g. `⚡ Verified by Jules Gate: ~38,500 tokens spared`) into the created Pull Request body.
-* **Sub-Agent Telemetry Reporting:** Mandated that Stage 4 Analytic Verifier sub-agents run `jules-gate tokens --json` and commit structured verification reports directly under `docs/reports/`.
-* **Pre-Dispatch Complexity & Line-Count Heuristics:** `jules-gate lint` flags tasks with prompt specifications shorter than ~2 lines or targeting <3 lines of diff as *"Candidate for Local Efficiency Override"* to prevent inadvertent cloud dispatches of micro-fixes.
-* **Enshrined Dynamic Efficiency Override (Local Option):** Enforced economic triage rule in `SKILL.md` and `rules/AGENTS.md` choosing fast local IDE execution when delegation overhead exceeds local token cost.
-* **Serialized Auto-Rebase Engine:** `jules-gate merge` automatically detects when the target branch has advanced, rebasing parallel Jules branches sequentially to prevent semantic regressions.
-* **Universal IDE Onboarding:** Streamlined one-step onboarding across Antigravity, VS Code, JetBrains, Cursor, and Terminal.
+* **Cloud Session Lifecycle Transparency:** Cleanly distinguishes between auto-closed remote sessions (`Completed`) and code-ready sessions awaiting user acceptance (`Awaiting User Feedback`). Emits direct clickable links `https://jules.google.com/task/<session_id>` across all wait, verify, merge, and PR commands.
+* **Browser Launcher (`jules-gate web [session_id]`):** Instant one-click or command-line launching of any Jules cloud task or dashboard in the default web browser.
+* **Non-Interactive Completion Directive Linter:** `jules-gate lint` checks for explicit completion directives in prompt contracts, ensuring Jules finalizes without asking conversational follow-ups and avoiding unnecessary `Awaiting User Feedback` pauses.
+* **Enhanced Telemetry Breakdown:** `jules-gate tokens` tracks and displays both `Completed` and `Awaiting User Feedback` remote deliveries in terminal output and `--json` schemas.
 
 ---
 

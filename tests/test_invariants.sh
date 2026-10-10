@@ -51,7 +51,7 @@ else
     log_fail "jules-gate help failed to output command summary"
 fi
 
-for subcmd in wait verify merge pr ps status lint tokens; do
+for subcmd in wait verify merge pr ps status lint tokens web; do
     if echo "$HELP_OUT" | grep -q "$subcmd"; then
         log_pass "Subcommand '$subcmd' documented in help output"
     else
@@ -61,8 +61,8 @@ done
 
 STATUS_OUT=$("$GATE_BIN" status 2>&1 || true)
 EXPECTED_VER=$(grep '"version"' "$PLUGIN_ROOT/plugin.json" | head -n 1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
-if [[ "$EXPECTED_VER" != "2.7.0" ]]; then
-    log_fail "Expected version 2.7.0 in plugin.json, got $EXPECTED_VER"
+if [[ "$EXPECTED_VER" != "2.8.0" ]]; then
+    log_fail "Expected version 2.8.0 in plugin.json, got $EXPECTED_VER"
 fi
 if echo "$STATUS_OUT" | grep -q "$EXPECTED_VER"; then
     log_pass "jules-gate status outputs plugin version ($EXPECTED_VER)"
@@ -92,6 +92,17 @@ if echo "$LINT_HEURISTIC_OUT" | grep -q "Candidate for Local Efficiency Override
     log_pass "jules-gate lint complexity heuristic flags concise micro-prompt"
 else
     log_fail "jules-gate lint failed to flag concise micro-prompt"
+fi
+
+# Completion directive check in jules-gate lint
+TMP_P2=$(mktemp "/tmp/directive_prompt-XXXXXX.txt")
+echo "Implement tests and finalize directly without asking questions." > "$TMP_P2"
+LINT_DIR_OUT=$("$GATE_BIN" lint "" "$TMP_P2" 2>&1 || true)
+rm -f "$TMP_P2"
+if echo "$LINT_DIR_OUT" | grep -q "Non-interactive conclusion directive detected"; then
+    log_pass "jules-gate lint verifies non-interactive conclusion directive"
+else
+    log_fail "jules-gate lint failed to detect non-interactive conclusion directive"
 fi
 
 # Token telemetry checks
@@ -168,6 +179,20 @@ else
     log_fail "SKILL.md or rules/AGENTS.md missing sub-agent telemetry reporting directive"
 fi
 
+# Ensure Lifecycle transparency (Awaiting User Feedback vs Completed) is codified
+if grep -q "Awaiting User Feedback" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md" && grep -q "Awaiting User Feedback" "$PLUGIN_ROOT/rules/AGENTS.md"; then
+    log_pass "SKILL.md and rules/AGENTS.md document cloud lifecycle transparency (Awaiting User Feedback)"
+else
+    log_fail "SKILL.md or rules/AGENTS.md missing cloud lifecycle transparency documentation"
+fi
+
+# Ensure Non-interactive completion directive is codified
+if grep -qi "without asking" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md" && grep -qi "without asking" "$PLUGIN_ROOT/rules/AGENTS.md"; then
+    log_pass "SKILL.md and rules/AGENTS.md document non-interactive task completion directive"
+else
+    log_fail "SKILL.md or rules/AGENTS.md missing non-interactive task completion directive"
+fi
+
 # ------------------------------------------------------------
 # INVARIANT 3: Zero-Token Polling Watcher (jules_poll_wait.sh)
 # ------------------------------------------------------------
@@ -213,6 +238,19 @@ set +e
 POLL_EXIT=$?
 set -e
 assert_eq "$POLL_EXIT" "0" "jules_poll_wait handles multiple parallel sessions successfully"
+
+# Case 2D: Session in Awaiting User Feedback (Patch Ready)
+echo "3333333333333333 Awaiting User Feedback" > "$MOCK_STATE_FILE"
+set +e
+AWAIT_OUT=$("$SCRIPTS_DIR/jules_poll_wait.sh" 3333333333333333 --timeout 1 2>&1)
+POLL_AWAIT_EXIT=$?
+set -e
+assert_eq "$POLL_AWAIT_EXIT" "0" "jules_poll_wait detects Awaiting User Feedback with exit code 0"
+if echo "$AWAIT_OUT" | grep -q "Patch Ready" && echo "$AWAIT_OUT" | grep -q "https://jules.google.com/task/3333333333333333"; then
+    log_pass "jules_poll_wait outputs patch ready message and web task link for Awaiting User Feedback"
+else
+    log_fail "jules_poll_wait missing patch ready message or web URL for Awaiting User Feedback"
+fi
 
 export PATH="$OLD_PATH"
 rm -rf "$MOCK_DIR"

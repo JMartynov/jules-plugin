@@ -2,11 +2,11 @@
 name: jules-task-controller
 description: >-
   Orchestrate Google Jules (EULIS) coding tasks with mandatory sub-agent execution, automated task splitting,
-  multi-modal delegation (features, code reviews, tests, research spikes), zero-token polling, and gated verification (Version 2.7.0).
+  multi-modal delegation (features, code reviews, tests, research spikes), zero-token polling, and gated verification (Version 2.8.0).
   Use whenever planning, splitting, delegating, or verifying tasks assigned to Jules / EULIS across any programming language.
 ---
 
-# Jules Task Controller (Version 2.7.0)
+# Jules Task Controller (Version 2.8.0)
 
 An enterprise orchestrator for **Google Jules (EULIS)**. Designed to maximize delegation across all software engineering workflows while strictly enforcing **sub-agent isolation** to eliminate token bloat (empirically proven to save **>99.5% of main-thread tokens** through Dynamic Multi-Tier Model Routing).
 
@@ -48,6 +48,7 @@ To maximize token efficiency (<0.8% relative compute cost), the system employs a
 | `jules-gate verify <id> [base_branch]` | Pulls patch to clean branch & runs tests | **Auto-detects pytest, npm, cargo, go, mvn** |
 | `jules-gate merge <id> [base] [--delete-remote]` | Auto-rebases and merges review branch | **Serialized auto-rebase prevents semantic conflicts** |
 | `jules-gate pr <id> [base_branch]` | Pushes verified branch & opens GitHub PR | **Guaranteed green CI, zero wasted runner hours** |
+| `jules-gate web [session_id]` | Opens session URL or dashboard in browser | **Direct 1-click cloud session review and dismissal** |
 | `jules-gate ps` | Lists remote Jules sessions and statuses | **Multi-session process monitoring** |
 | `jules-gate status` | Checks health of plugin, CLI, and scripts | **Immediate environment diagnostic** |
 
@@ -136,6 +137,8 @@ Jules is not limited to standard feature coding. Use these standardized template
 - AST / Regex Safety: Use negative lookbehinds `(?<!Server)` to avoid matching generic objects.
 #### 3. Testing:
 - Add comprehensive unit tests in `tests/test_<module>.<ext>`.
+#### 4. Completion Directive:
+- Implement all requested changes, verify with tests, and finalize your response directly with a summary. Do not ask conversational follow-up questions without asking, so the task cleanly transitions to Completed.
 ```
 
 ### Mode 2: Delegated Code Review & Security Auditing
@@ -321,5 +324,28 @@ Checks:
 - Target repository is connected to Jules (`jules remote list --repo`).
 - Prompt file exists and contains bounded file paths or test assertions.
 - Project automated test runner is detected (`pytest`, `npm test`, `cargo test`, `go test`).
+- Completion directive check: prompts should instruct Jules to conclude without asking conversational questions to prevent sessions from remaining in `Awaiting User Feedback`.
+
+---
+
+## 8. Cloud Session Lifecycle Transparency (Completed vs. Awaiting User Feedback)
+
+Google Jules operates remote asynchronous cloud VMs with distinct lifecycle states:
+
+$$\text{[QUEUED]} \longrightarrow \text{[RUNNING]} \longrightarrow \mathbf{\text{[AWAITING USER FEEDBACK]}} \;\text{or}\; \mathbf{\text{[COMPLETED]}}$$
+
+### Key Operational Invariants:
+1. **Patch Availability:** In both `Completed` and `Awaiting User Feedback`, the git patch is **100% complete and fully downloadable** via `jules remote pull --session <id>`.
+2. **Why `Awaiting User Feedback` Occurs:**
+   - Jules finished code generation and passing tests, but paused its VM for human interaction (e.g., asking "Would you like me to create a PR?").
+   - This keeps the task displayed as active on the web UI (`https://jules.google.com/task/<id>`).
+3. **When Feedback is NOT Needed:**
+   - When local verification (`jules-gate verify`) succeeds and all local tests pass, the patch is merged into `main`.
+   - No feedback is required. The operator can dismiss or accept the session on the web UI or via `jules-gate web <id>`.
+4. **When Feedback IS Needed (Iterative Hotfix):**
+   - If local verification fails, `Awaiting User Feedback` provides a zero-overhead window to reply to the session with pytest stack traces, allowing Jules to fix the issue in the same cloud VM without a new session.
+5. **Non-Interactive Completion Directive:**
+   - Always include in task prompts: `"Implement all requested changes, verify with tests, and finalize your response directly with a summary without asking open-ended questions so the session cleanly transitions to Completed."`
+
 
 

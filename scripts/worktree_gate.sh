@@ -134,6 +134,7 @@ rm -rf "$PATCH_FILE"
 
 echo "=========================================================="
 echo "🎉 Verification successful! Review branch '$REVIEW_BRANCH' is ready."
+echo "  🌐 Jules Web Task: https://jules.google.com/task/$SESSION_ID"
 echo "To merge into $BASE_BRANCH:"
 echo "  git checkout $BASE_BRANCH && git merge --no-ff $REVIEW_BRANCH"
 echo "To create a GitHub PR:"

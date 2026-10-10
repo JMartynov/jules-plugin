@@ -43,6 +43,7 @@ START_TIME=$(date +%s)
 TIMEOUT_SECS=$((TIMEOUT_MINS * 60))
 
 COMPLETED_SESSIONS=" "
+AWAITING_FEEDBACK_SESSIONS=" "
 FAILED_SESSIONS=" "
 
 while true; do
@@ -59,7 +60,7 @@ while true; do
 
     for SID in "${SESSIONS[@]}"; do
         # Check if already processed
-        if [[ "$COMPLETED_SESSIONS" == *" $SID "* || "$FAILED_SESSIONS" == *" $SID "* ]]; then
+        if [[ "$COMPLETED_SESSIONS" == *" $SID "* || "$AWAITING_FEEDBACK_SESSIONS" == *" $SID "* || "$FAILED_SESSIONS" == *" $SID "* ]]; then
             continue
         fi
 
@@ -71,10 +72,17 @@ while true; do
         fi
 
         if echo "$STATUS_LINE" | grep -qi "Completed"; then
-            echo "✅ [DONE] Session $SID completed successfully!"
+            echo "✅ [DONE: Completed] Session $SID finalized remotely."
+            echo "   🌐 Web Session: https://jules.google.com/task/$SID"
             COMPLETED_SESSIONS="${COMPLETED_SESSIONS}${SID} "
+        elif echo "$STATUS_LINE" | grep -qiE "Awaiting User"; then
+            echo "⚡ [DONE: Patch Ready] Session $SID code generated and ready to pull."
+            echo "   🌐 Web Session: https://jules.google.com/task/$SID (Awaiting User Feedback)"
+            echo "   💡 Note: Cloud session is awaiting web UI feedback/dismissal; git patch is complete."
+            AWAITING_FEEDBACK_SESSIONS="${AWAITING_FEEDBACK_SESSIONS}${SID} "
         elif echo "$STATUS_LINE" | grep -qi "Failed"; then
             echo "❌ [FAILED] Session $SID failed remotely!"
+            echo "   🌐 Web Session: https://jules.google.com/task/$SID"
             FAILED_SESSIONS="${FAILED_SESSIONS}${SID} "
         else
             ALL_DONE=false
@@ -83,7 +91,7 @@ while true; do
 
     # Check if all sessions have reached a terminal state
     for SID in "${SESSIONS[@]}"; do
-        if [[ "$COMPLETED_SESSIONS" != *" $SID "* && "$FAILED_SESSIONS" != *" $SID "* ]]; then
+        if [[ "$COMPLETED_SESSIONS" != *" $SID "* && "$AWAITING_FEEDBACK_SESSIONS" != *" $SID "* && "$FAILED_SESSIONS" != *" $SID "* ]]; then
             ALL_DONE=false
             break
         fi
@@ -93,9 +101,11 @@ while true; do
         echo "🎉 All requested Jules sessions have concluded."
         for SID in "${SESSIONS[@]}"; do
             if [[ "$COMPLETED_SESSIONS" == *" $SID "* ]]; then
-                echo "  - Session $SID: Completed"
+                echo "  - Session $SID: Completed (https://jules.google.com/task/$SID)"
+            elif [[ "$AWAITING_FEEDBACK_SESSIONS" == *" $SID "* ]]; then
+                echo "  - Session $SID: Patch Ready / Awaiting User Feedback (https://jules.google.com/task/$SID)"
             else
-                echo "  - Session $SID: Failed"
+                echo "  - Session $SID: Failed (https://jules.google.com/task/$SID)"
             fi
         done
         break
