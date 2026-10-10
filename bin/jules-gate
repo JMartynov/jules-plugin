@@ -27,7 +27,7 @@ usage() {
 Usage: jules-gate <command> [arguments...]
 
 Commands:
-  wait <session_id...> [--timeout MINS]  Poll and wait for Jules session(s) with ZERO LLM token cost.
+  wait <session_id...> [--timeout MINS] [--interactive|-i]  Poll and wait for Jules session(s). With --interactive, auto-answers boilerplate prompts.
   verify <session_id> [base_branch]      Pull patch, checkout isolated review branch, run tests, and gate.
   merge <session_id> [base] [--no-rebase] [--delete-remote] Verify, auto-rebase, and merge review branch.
   pr <session_id> [base_branch]          Verify and push review branch, opening a verified GitHub PR via `gh`.
@@ -35,6 +35,7 @@ Commands:
   tokens [--json] [--reset]              Display cumulative estimated tokens spared across sessions.
   inspect <session_id> [--json]          Inspect activity stream & extract interactive question from Jules.
   interact <session_id> <msg_or_file>    Send answer directly into running Jules Cloud VM to resume execution.
+  auto-answer <session_id>               Evaluate auto-answer heuristics and unblock boilerplate prompts autonomously.
   close [session_id]                     Open Jules session to close it.
   reply [session_id] [file_or_msg]       Copy failure trace and open Jules session for in-VM repair.
   web [session_id]                       Open Jules session or dashboard in the default browser.
@@ -442,6 +443,14 @@ EOF
             exit 1
         fi
         python3 "$SCRIPTS_DIR/jules_api.py" interact "$SESSION_ID" "$MESSAGE"
+        ;;
+    auto-answer)
+        SESSION_ID="${1:-}"
+        if [[ -z "$SESSION_ID" ]]; then
+            echo "Usage: jules-gate auto-answer <session_id>"
+            exit 1
+        fi
+        python3 "$SCRIPTS_DIR/jules_api.py" auto-answer "$SESSION_ID"
         ;;
     web|open)
         SESSION_ID="${1:-}"

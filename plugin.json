@@ -1,7 +1,7 @@
 {
   "name": "jules-plugin",
-  "version": "3.0.0",
-  "description": "Enterprise Google Jules (EULIS) orchestrator v3.0.0 featuring Autonomous Multi-Tier Interactive Task Resolution (jules-gate inspect & interact), Strict No-Merge Interactive State Guardrails, Dynamic Multi-Tier Model Routing sparing >99.5% tokens, PR telemetry badges, serialized auto-rebase merge engine, automated task splitting, zero-token polling, and 4-stage lifecycle insulation.",
+  "version": "3.1.0",
+  "description": "Enterprise Google Jules (EULIS) orchestrator v3.1.0 featuring Auto-Answer Heuristics for boilerplate follow-ups, Interactive Watcher Flag (jules-gate wait --interactive), Autonomous Multi-Tier Interactive Task Resolution (jules-gate inspect & interact), Strict No-Merge Interactive State Guardrails, Dynamic Multi-Tier Model Routing sparing >99.5% tokens, and 4-stage lifecycle insulation.",
   "author": {
     "name": "Ivan"
   }

@@ -51,7 +51,7 @@ else
     log_fail "jules-gate help failed to output command summary"
 fi
 
-for subcmd in wait verify merge pr ps status lint tokens web close reply inspect interact; do
+for subcmd in wait verify merge pr ps status lint tokens web close reply inspect interact auto-answer; do
     if echo "$HELP_OUT" | grep -q "$subcmd"; then
         log_pass "Subcommand '$subcmd' documented in help output"
     else
@@ -61,8 +61,8 @@ done
 
 STATUS_OUT=$("$GATE_BIN" status 2>&1 || true)
 EXPECTED_VER=$(grep '"version"' "$PLUGIN_ROOT/plugin.json" | head -n 1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
-if [[ "$EXPECTED_VER" != "3.0.0" ]]; then
-    log_fail "Expected version 3.0.0 in plugin.json, got $EXPECTED_VER"
+if [[ "$EXPECTED_VER" != "3.1.0" ]]; then
+    log_fail "Expected version 3.1.0 in plugin.json, got $EXPECTED_VER"
 fi
 if echo "$STATUS_OUT" | grep -q "$EXPECTED_VER"; then
     log_pass "jules-gate status outputs plugin version ($EXPECTED_VER)"
@@ -501,7 +501,7 @@ echo ""
 echo "--- [Invariant 7: Google AIDA API Engine (jules_api.py)] ---"
 
 API_USAGE_OUT=$(python3 "$SCRIPTS_DIR/jules_api.py" 2>&1 || true)
-if echo "$API_USAGE_OUT" | grep -q "jules_api.py <inspect|interact>"; then
+if echo "$API_USAGE_OUT" | grep -q "jules_api.py <inspect|interact"; then
     log_pass "scripts/jules_api.py outputs usage on missing arguments"
 else
     log_fail "scripts/jules_api.py missing usage output"
@@ -519,6 +519,43 @@ if echo "$GATE_INTERACT_USAGE" | grep -q "Usage: jules-gate interact"; then
     log_pass "jules-gate interact enforces argument validation"
 else
     log_fail "jules-gate interact missing usage validation"
+fi
+
+GATE_AUTO_USAGE=$("$GATE_BIN" auto-answer 2>&1 || true)
+if echo "$GATE_AUTO_USAGE" | grep -q "Usage: jules-gate auto-answer"; then
+    log_pass "jules-gate auto-answer enforces session_id argument"
+else
+    log_fail "jules-gate auto-answer missing usage validation"
+fi
+
+# ------------------------------------------------------------
+# INVARIANT 8: Auto-Answer Heuristics & Interactive Watcher
+# ------------------------------------------------------------
+echo ""
+echo "--- [Invariant 8: Auto-Answer Heuristics & Interactive Watcher] ---"
+
+WAIT_USAGE=$("$SCRIPTS_DIR/jules_poll_wait.sh" --help 2>&1 || true)
+if echo "$WAIT_USAGE" | grep -q -- "--interactive|-i"; then
+    log_pass "jules_poll_wait.sh documents --interactive|-i flag"
+else
+    log_fail "jules_poll_wait.sh missing --interactive flag in usage"
+fi
+
+AUTO_HEURISTIC_TEST=$(cd "$PLUGIN_ROOT" && python3 -c "
+from scripts.jules_api import evaluate_auto_answer
+p1, a1 = evaluate_auto_answer('Should I open a PR or adjust anything?')
+p2, a2 = evaluate_auto_answer('Would you like me to make any other changes?')
+p3, a3 = evaluate_auto_answer('Which option do you prefer: Option A or Option B?')
+assert p1 is True, 'Boilerplate PR prompt should be auto-answerable'
+assert p2 is True, 'Boilerplate adjustments prompt should be auto-answerable'
+assert p3 is False, 'Substantive Option prompt must NOT be auto-answerable'
+print('OK')
+" 2>&1 || true)
+
+if echo "$AUTO_HEURISTIC_TEST" | grep -q "OK"; then
+    log_pass "scripts/jules_api.py evaluate_auto_answer correctly identifies boilerplate vs substantive prompts"
+else
+    log_fail "scripts/jules_api.py evaluate_auto_answer heuristic failed: $AUTO_HEURISTIC_TEST"
 fi
 
 # Cleanup

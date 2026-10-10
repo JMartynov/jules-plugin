@@ -8,11 +8,12 @@ set -euo pipefail
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 usage() {
-    echo "Usage: $0 [--timeout MINS] <session_id> [<session_id2> ...]"
+    echo "Usage: $0 [--timeout MINS] [--interactive|-i] <session_id> [<session_id2> ...]"
     exit 1
 }
 
 TIMEOUT_MINS=30
+INTERACTIVE_MODE=false
 SESSIONS=()
 
 while [[ $# -gt 0 ]]; do
@@ -20,6 +21,10 @@ while [[ $# -gt 0 ]]; do
         --timeout)
             TIMEOUT_MINS="$2"
             shift 2
+            ;;
+        -i|--interactive)
+            INTERACTIVE_MODE=true
+            shift
             ;;
         -h|--help)
             usage
@@ -81,16 +86,34 @@ while true; do
             echo "⚡ [INTERACTIVE: Awaiting User Feedback] Session $SID requires user response!"
             echo "   🌐 Web Session: https://jules.google.com/task/$SID"
             API_SCRIPT="$SCRIPT_DIR/jules_api.py"
+            AUTO_RESOLVED=false
             if [[ -x "$API_SCRIPT" ]]; then
-                INSPECT_JSON=$("$API_SCRIPT" inspect "$SID" --json 2>/dev/null || true)
-                QUESTION=$(echo "$INSPECT_JSON" | grep -o '"question": *"[^"]*"' | sed -E 's/"question": *"([^"]*)"/\1/' || true)
-                if [[ -n "$QUESTION" ]]; then
-                    echo "   ❓ Jules Question: $QUESTION"
+                if [[ "$INTERACTIVE_MODE" == "true" ]]; then
+                    echo "   🤖 [--interactive] Evaluating auto-answer heuristics for session $SID..."
+                    if python3 "$API_SCRIPT" auto-answer "$SID" 2>&1; then
+                        echo "   ✅ Automatically resolved boilerplate prompt. Resuming token-free watcher..."
+                        AUTO_RESOLVED=true
+                        sleep 10
+                    else
+                        echo "   ⚡ Prompt is substantive: requires manual or escalated decision."
+                    fi
+                fi
+                if [[ "$AUTO_RESOLVED" == "false" ]]; then
+                    INSPECT_JSON=$(python3 "$API_SCRIPT" inspect "$SID" --json 2>/dev/null || true)
+                    QUESTION=$(echo "$INSPECT_JSON" | grep -o '"question": *"[^"]*"' | sed -E 's/"question": *"([^"]*)"/\1/' || true)
+                    if [[ -n "$QUESTION" ]]; then
+                        echo "   ❓ Jules Question: $QUESTION"
+                    fi
                 fi
             fi
-            echo "   ⛔ STRICT GUARD: Task is in interactive state. DO NOT MERGE. DO NOT CONSIDER COMPLETED."
-            echo "   💡 Action: Use 'jules-gate interact $SID \"<answer>\"' to unblock Jules."
-            AWAITING_FEEDBACK_SESSIONS="${AWAITING_FEEDBACK_SESSIONS}${SID} "
+
+            if [[ "$AUTO_RESOLVED" == "true" ]]; then
+                ALL_DONE=false
+            else
+                echo "   ⛔ STRICT GUARD: Task is in interactive state. DO NOT MERGE. DO NOT CONSIDER COMPLETED."
+                echo "   💡 Action: Use 'jules-gate interact $SID \"<answer>\"' to unblock Jules."
+                AWAITING_FEEDBACK_SESSIONS="${AWAITING_FEEDBACK_SESSIONS}${SID} "
+            fi
         elif echo "$STATUS_LINE" | grep -qi "Failed"; then
             echo "❌ [FAILED] Session $SID failed remotely!"
             echo "   🌐 Web Session: https://jules.google.com/task/$SID"

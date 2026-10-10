@@ -136,9 +136,12 @@ The universal orchestrator CLI is installed in your system PATH at `/Users/ivan/
 | **`lint`** | `jules-gate lint <repo> [prompt]` | Pre-flight contract linter & complexity heuristic check. |
 | **`tokens`** | `jules-gate tokens [--json] [--reset]` | Displays cumulative estimated tokens and compute dollars spared across sessions. |
 | **`status`** | `jules-gate status` | Checks health of plugin, version, and script executable permissions. |
-| **`wait`** | `jules-gate wait <id...> [--timeout M]` | Polls one or more sessions every 30s. Consumes **0 LLM tokens** while waiting. |
+| **`wait`** | `jules-gate wait <id...> [--timeout M] [-i]` | Polls sessions every 30s at **0 tokens**. With `-i/--interactive`, automatically resolves boilerplate review follow-ups. Exits 10 if interactive. |
+| **`auto-answer`** | `jules-gate auto-answer <id>` | Evaluates heuristics and auto-replies to boilerplate sign-offs autonomously. |
+| **`inspect`** | `jules-gate inspect <id> [--json]` | Extracts interactive questions and prompt status from Google Jules Cloud VM. |
+| **`interact`** | `jules-gate interact <id> <msg>` | Injects feedback directly into running Cloud VM to resume execution. |
 | **`verify`** | `jules-gate verify <id> [base_branch]` | Pulls patch to `jules/review-<id>`, applies diff, runs auto-detected tests, and reports pass/fail. |
-| **`merge`** | `jules-gate merge <id> [base] [--delete-remote]` | Executes `verify`, merges into base branch with `--no-ff`, and deletes the review branch (and optionally the remote branch). |
+| **`merge`** | `jules-gate merge <id> [base] [--delete-remote]` | Executes `verify`, merges into base branch with `--no-ff`, and deletes the review branch. Refuses merge on interactive tasks (exit 5). |
 | **`pr`** | `jules-gate pr <id> [base_branch]` | Executes `verify`, pushes branch to origin, and opens a GitHub PR via `gh pr create`. |
 | **`close`** | `jules-gate close [id]` | Web session dismissal and browser launcher. |
 | **`reply`** | `jules-gate reply [id] [log]` | Rapid in-VM test repair. |

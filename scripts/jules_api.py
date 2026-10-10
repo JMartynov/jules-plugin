@@ -13,6 +13,34 @@ import subprocess
 import urllib.request
 import urllib.error
 import ssl
+import re
+
+COMMON_BOILERPLATE_PATTERNS = [
+    r"should i (?:open|create|file|submit) a (?:pr|pull request)",
+    r"would you like me to (?:open|create|file|submit) a (?:pr|pull request)",
+    r"would you like (?:me to )?(?:make )?(?:any|further|other)? ?(?:further|other)? ?(?:changes|adjustments|modifications)",
+    r"should i (?:make|proceed with) (?:any|further)? ?(?:changes|adjustments)",
+    r"let me know if you would like (?:me to )?(?:make )?(?:any|further|other)? ?(?:changes|adjustments)",
+    r"do you want me to (?:open|create|file) a (?:pr|pull request)",
+    r"is there anything else you would like me to",
+    r"would you like me to proceed",
+    r"please let me know if you(?: would like| want) me to",
+]
+
+DEFAULT_AUTO_ANSWER = (
+    "Everything looks good. No further changes or pull request needed. "
+    "Please finalize and complete the task directly without asking follow-up questions."
+)
+
+def evaluate_auto_answer(question):
+    """Determine whether question matches boilerplate review sign-off patterns."""
+    if not question:
+        return False, None
+    q_clean = question.strip().lower()
+    for pattern in COMMON_BOILERPLATE_PATTERNS:
+        if re.search(pattern, q_clean):
+            return True, DEFAULT_AUTO_ANSWER
+    return False, None
 
 AIDA_BASE_URL = os.environ.get("JULES_API_BASE_URL", "https://aida.googleapis.com/v1/swebot")
 
@@ -85,12 +113,16 @@ def inspect_session(session_id):
             step_id = step.get("id", "")
             break
 
+    auto_answerable, suggested_answer = evaluate_auto_answer(latest_question)
+
     return {
         "session_id": session_id,
         "is_interactive": is_interactive,
         "question": latest_question,
         "step_id": step_id,
-        "total_steps": len(steps)
+        "total_steps": len(steps),
+        "auto_answerable": auto_answerable if is_interactive else False,
+        "suggested_answer": suggested_answer if is_interactive else None
     }
 
 def send_interact(session_id, feedback_text):
@@ -108,7 +140,7 @@ def send_interact(session_id, feedback_text):
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: jules_api.py <inspect|interact> <session_id> [message_or_file]", file=sys.stderr)
+        print("Usage: jules_api.py <inspect|interact|auto-answer> <session_id> [message_or_file]", file=sys.stderr)
         sys.exit(1)
 
     cmd = sys.argv[1]
@@ -124,6 +156,8 @@ def main():
                 print(f" [Jules Gate API] Session Inspection: {session_id}")
                 print("==========================================================")
                 print(f"  Interactive State: {'YES (Awaiting User Response)' if data['is_interactive'] else 'NO'}")
+                if data["is_interactive"]:
+                    print(f"  Auto-Answerable:   {'YES (Boilerplate review prompt)' if data['auto_answerable'] else 'NO (Substantive decision)'}")
                 if data["question"]:
                     print("  Jules Question / Prompt:")
                     print("  --------------------------------------------------------")
@@ -149,6 +183,22 @@ def main():
             print(f"✅ Successfully dispatched feedback to Jules Cloud VM for session {session_id}.")
             print("   The cloud session has resumed execution.")
             sys.exit(0)
+
+        elif cmd == "auto-answer":
+            data = inspect_session(session_id)
+            if not data["is_interactive"]:
+                print(f"Session {session_id} is not in an interactive state.", file=sys.stderr)
+                sys.exit(1)
+            if data["auto_answerable"]:
+                ans = data["suggested_answer"]
+                send_interact(session_id, ans)
+                print(f"🤖 [AUTO-ANSWER] Recognized boilerplate review prompt for session {session_id}.")
+                print(f"   Dispatched automated completion feedback to Jules Cloud VM: '{ans}'")
+                sys.exit(0)
+            else:
+                print(f"⚡ [SUBSTANTIVE PROMPT] Session {session_id} cannot be auto-answered.", file=sys.stderr)
+                print(f"   Question: {data['question']}", file=sys.stderr)
+                sys.exit(10)
 
         else:
             print(f"Unknown command: {cmd}", file=sys.stderr)
