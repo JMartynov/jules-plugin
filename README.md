@@ -1,6 +1,6 @@
-# Google Jules (EULIS) Task Controller Plugin (Version 2.8.0)
+# Google Jules (EULIS) Task Controller Plugin (Version 2.9.0)
 
-[![Version](https://img.shields.io/badge/version-2.8.0-blue.svg)](plugin.json)
+[![Version](https://img.shields.io/badge/version-2.9.0-blue.svg)](plugin.json)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](README.md)
 [![Status](https://img.shields.io/badge/status-active-success.svg)](https://github.com/JMartynov/jules-plugin)
 
@@ -21,8 +21,9 @@ An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Design
 
 ---
 
-## 🌟 What's New in Version 2.8.0
+## 🌟 What's New in Version 2.9.0
 
+* **Cloud VM Rapid Reply & Web Session Closing:** New `jules-gate close` command prints task dismissal guidance and directly opens the session URL. The powerful `jules-gate reply` command automates rapid feedback for in-VM test repair by copying failure traces to the clipboard and opening the remote VM for instant pasting.
 * **Cloud Session Lifecycle Transparency:** Cleanly distinguishes between auto-closed remote sessions (`Completed`) and code-ready sessions awaiting user acceptance (`Awaiting User Feedback`). Emits direct clickable links `https://jules.google.com/task/<session_id>` across all wait, verify, merge, and PR commands.
 * **Browser Launcher (`jules-gate web [session_id]`):** Instant one-click or command-line launching of any Jules cloud task or dashboard in the default web browser.
 * **Non-Interactive Completion Directive Linter:** `jules-gate lint` checks for explicit completion directives in prompt contracts, ensuring Jules finalizes without asking conversational follow-ups and avoiding unnecessary `Awaiting User Feedback` pauses.
@@ -139,6 +140,8 @@ The universal orchestrator CLI is installed in your system PATH at `/Users/ivan/
 | **`verify`** | `jules-gate verify <id> [base_branch]` | Pulls patch to `jules/review-<id>`, applies diff, runs auto-detected tests, and reports pass/fail. |
 | **`merge`** | `jules-gate merge <id> [base] [--delete-remote]` | Executes `verify`, merges into base branch with `--no-ff`, and deletes the review branch (and optionally the remote branch). |
 | **`pr`** | `jules-gate pr <id> [base_branch]` | Executes `verify`, pushes branch to origin, and opens a GitHub PR via `gh pr create`. |
+| **`close`** | `jules-gate close [id]` | Web session dismissal and browser launcher. |
+| **`reply`** | `jules-gate reply [id] [log]` | Rapid in-VM test repair. |
 | **`ps`** | `jules-gate ps [flags]` | Lists remote Jules sessions, linked repositories, and their execution statuses. |
 | **`help`** | `jules-gate help` | Displays available commands and usage guide. |
 

@@ -106,7 +106,8 @@ if [[ -n "$TEST_CMD" ]]; then
         grep -E "^(FAILED|ERROR|=== FAIL|FAIL:) " "$TEST_LOG" | head -n 15 || true
         echo "--- [Test Failure Summary (Last 40 lines)] ---"
         tail -n 40 "$TEST_LOG"
-        rm -f "$TEST_LOG"
+        echo "💡 Tip: Run \"jules-gate reply $SESSION_ID $TEST_LOG\" to copy the failure trace and open the Cloud VM for zero-overhead in-VM repair."
+        # Not removing $TEST_LOG here because we suggest using it in the reply command
         git checkout -f "$BASE_BRANCH"
         git branch -D "$REVIEW_BRANCH" 2>/dev/null || true
         rm -rf "$PATCH_FILE"

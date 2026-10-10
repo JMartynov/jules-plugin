@@ -1,12 +1,12 @@
-# Jules Task Controller v2.8.0 Implementation Details
+# Jules Task Controller v2.9.0 Implementation Details
 
-This document comprehensively outlines the architectural changes, features, and optimizations introduced in **Version 2.8.0** of the Jules Task Controller.
+This document comprehensively outlines the architectural changes, features, and optimizations introduced in **Version 2.9.0** of the Jules Task Controller.
 
 ---
 
 ## 1. 4-Stage Lifecycle Token Insulation (>99.5% Token Savings)
 
-The v2.8.0 architecture evolves the system into an enterprise **4-stage multi-tier orchestration system** that dynamically routes tasks to the most efficient model, sparing over 99.5% of main-thread tokens.
+The v2.9.0 architecture evolves the system into an enterprise **4-stage multi-tier orchestration system** that dynamically routes tasks to the most efficient model, sparing over 99.5% of main-thread tokens.
 
 **Token Comparison Matrix:**
 | Architecture Approach | Token Cost | Notes |
@@ -222,7 +222,7 @@ Tier 2 Analytic Verifier sub-agents (`flash`) execute `jules-gate tokens --json`
 
 ---
 
-## 5. Cloud Session Lifecycle Transparency & Web Integration (v2.8.0)
+## 5. Cloud Session Lifecycle Transparency & Web Integration (v2.9.0)
 
 In Google Jules's distributed VM architecture, task states diverge into two distinct terminal conditions:
 1. `Completed`: Jules automatically closes the session upon generating changes and testing them.
@@ -232,15 +232,17 @@ In Google Jules's distributed VM architecture, task states diverge into two dist
 * **Dual-State Patch Readiness:** Both states produce a complete, uncorrupted git patch downloadable via `jules remote pull --session <id>`. `scripts/jules_poll_wait.sh` cleanly flags `Awaiting User Feedback` as `[DONE: Patch Ready]` rather than a generic or ambiguous status.
 * **Direct Web Task Linking:** All completion points (`jules-gate wait`, `worktree_gate.sh`, `jules-gate merge`, `jules-gate pr`) automatically emit the direct web URL (`https://jules.google.com/task/<session_id>`).
 * **Browser Quick Launch (`jules-gate web`):** Allows immediate opening of the remote session in the operator's default browser via `open` or `xdg-open`.
+* **Session Task Dismissal (`jules-gate close`):** Provides a shortcut to print task dismissal guidance and open the browser URL, streamlining the process of closing web UI tasks.
+* **Rapid Cloud VM Repair (`jules-gate reply`):** Enables extreme local efficiency by automatically copying failure traces (`pbcopy`/`xclip`) and launching the Cloud VM to paste traces for zero-overhead in-VM test repair.
 * **Prompt Completion Directive Check:** `jules-gate lint` verifies that prompt contracts instruct Jules to conclude without conversational questions, preventing unnecessary `Awaiting User Feedback` pauses.
 
 ---
 
 ## Architecture and Command Table
 
-| Component | Location | Responsibility / Change in v2.8.0 |
+| Component | Location | Responsibility / Change in v2.9.0 |
 | :--- | :--- | :--- |
-| **`jules-gate` CLI** | `bin/jules-gate` | Added `web` launcher subcommand, enhanced `tokens` with awaiting vs completed breakdown, added completion directive check to `lint`, web URL embedding in `merge` & `pr`. |
+| **`jules-gate` CLI** | `bin/jules-gate` | Added `close` and `reply` subcommands, clipboard integration, web URL embedding, enhanced `tokens` with awaiting vs completed breakdown, added completion directive check to `lint`. |
 | **Status Poller** | `scripts/jules_poll_wait.sh` | Cleanly differentiates `Completed` vs `Awaiting User Feedback` (`Patch Ready`), emits session web URLs. |
 | **Gated Verification** | `scripts/worktree_gate.sh` | Emits direct web session link, telemetry logging, diagnostic sieve (`tail -n 40`). |
 | **Invariant Suite** | `tests/test_invariants.sh` | 43 automated assertions validating CLI, lifecycle states, completion directive linter, web launcher, and multi-tier rules. |

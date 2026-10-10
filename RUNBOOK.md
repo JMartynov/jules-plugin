@@ -1,6 +1,6 @@
 # Jules Task Controller: Operational Runbook
 
-**Version:** 2.8.0  
+**Version:** 2.9.0  
 **Target Audience:** Software Engineers, DevOps, Autonomous AI Agents (Antigravity / Gemini IDE, Claude Code, Cursor, JetBrains, VS Code)  
 **System Repository:** [`https://github.com/JMartynov/jules-plugin`](https://github.com/JMartynov/jules-plugin)
 
@@ -523,8 +523,10 @@ Google Jules uses asynchronous Cloud VMs that transition through distinct states
    ```
 3. **Closing vs. Iterating Sessions:**
    - **On Pass:** When `jules-gate verify` passes local tests, merge the branch into `main`. The user may accept or close the task in the web UI at convenience.
-   - **On Test Failure:** If local tests fail, reply to the session with pytest stack traces. Jules continues working within the existing Cloud VM without incurring the overhead of a fresh session.
-4. **Prompt Optimization (Non-Interactive Directive):**
+   - **On Test Failure (Rapid Repair):** If local tests fail, utilize `jules-gate reply <session_id> <failure_log>` to copy the trace to your clipboard and open the Web UI for instant pasting. Jules will continue working within the existing Cloud VM.
+4. **Session Web UI Dismissal (`jules-gate close`):**
+   - Run `jules-gate close <session_id>` to print task dismissal guidance and directly open the remote session link to manually close it out.
+5. **Prompt Optimization (Non-Interactive Directive):**
    To avoid Jules pausing in `Awaiting User Feedback` when self-contained tasks finish, always include:
    > *"Implement all requested changes, verify with tests, and finalize your response directly with a summary without asking open-ended questions so the session cleanly transitions to Completed."*
 
