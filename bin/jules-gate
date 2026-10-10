@@ -33,6 +33,8 @@ Commands:
   pr <session_id> [base_branch]          Verify and push review branch, opening a verified GitHub PR via `gh`.
   lint <repo> [prompt_file]              Pre-flight contract linter to validate repo connection and prompt spec.
   tokens [--json] [--reset]              Display cumulative estimated tokens spared across sessions.
+  close [session_id]                     Open Jules session to close it.
+  reply [session_id] [file_or_msg]       Copy failure trace and open Jules session for in-VM repair.
   web [session_id]                       Open Jules session or dashboard in the default browser.
   ps [flags]                             List remote Jules sessions and statuses.
   status                                 Check and display plugin version, scripts, and Jules CLI status.
@@ -358,6 +360,57 @@ EOF
         echo "=========================================================="
         echo "  Tip: Run 'jules-gate tokens --json' for machine-readable output"
         echo "  Tip: Run 'jules-gate web [session_id]' to open web task in browser"
+        ;;
+    close)
+        SESSION_ID="${1:-}"
+        if [[ -z "$SESSION_ID" ]]; then
+            echo "❌ Error: session_id is required for close command."
+            exit 1
+        fi
+        echo "✅ Task dismissal guidance: Please review the changes and close the session in the Web UI."
+        URL="https://jules.google.com/task/$SESSION_ID"
+        echo "🌐 Jules Web Task: $URL"
+        if command -v open >/dev/null 2>&1; then
+            open "$URL" 2>/dev/null || true
+        elif command -v xdg-open >/dev/null 2>&1; then
+            xdg-open "$URL" 2>/dev/null || true
+        fi
+        ;;
+    reply)
+        SESSION_ID="${1:-}"
+        FILE_OR_MSG="${2:-}"
+        if [[ -z "$SESSION_ID" || -z "$FILE_OR_MSG" ]]; then
+            echo "❌ Error: session_id and file_or_message are required for reply command."
+            exit 1
+        fi
+        
+        # Check if FILE_OR_MSG is a file and readable
+        if [[ -f "$FILE_OR_MSG" && -r "$FILE_OR_MSG" ]]; then
+            CONTENT=$(cat "$FILE_OR_MSG")
+            echo "📄 Reading content from file: $FILE_OR_MSG"
+        else
+            CONTENT="$FILE_OR_MSG"
+            echo "💬 Using provided text message."
+        fi
+        
+        # Copy to clipboard
+        if command -v pbcopy >/dev/null 2>&1; then
+            echo "$CONTENT" | pbcopy
+            echo "📋 Copied content to clipboard (pbcopy)."
+        elif command -v xclip >/dev/null 2>&1; then
+            echo "$CONTENT" | xclip -selection clipboard
+            echo "📋 Copied content to clipboard (xclip)."
+        else
+            echo "⚠️  Clipboard utilities (pbcopy/xclip) not found. Could not copy to clipboard."
+        fi
+        
+        URL="https://jules.google.com/task/$SESSION_ID"
+        echo "🌐 Opening Jules Web Task for rapid reply: $URL"
+        if command -v open >/dev/null 2>&1; then
+            open "$URL" 2>/dev/null || true
+        elif command -v xdg-open >/dev/null 2>&1; then
+            xdg-open "$URL" 2>/dev/null || true
+        fi
         ;;
     web|open)
         SESSION_ID="${1:-}"

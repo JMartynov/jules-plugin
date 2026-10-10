@@ -51,7 +51,7 @@ else
     log_fail "jules-gate help failed to output command summary"
 fi
 
-for subcmd in wait verify merge pr ps status lint tokens web; do
+for subcmd in wait verify merge pr ps status lint tokens web close reply; do
     if echo "$HELP_OUT" | grep -q "$subcmd"; then
         log_pass "Subcommand '$subcmd' documented in help output"
     else
@@ -61,8 +61,8 @@ done
 
 STATUS_OUT=$("$GATE_BIN" status 2>&1 || true)
 EXPECTED_VER=$(grep '"version"' "$PLUGIN_ROOT/plugin.json" | head -n 1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
-if [[ "$EXPECTED_VER" != "2.8.0" ]]; then
-    log_fail "Expected version 2.8.0 in plugin.json, got $EXPECTED_VER"
+if [[ "$EXPECTED_VER" != "2.9.0" ]]; then
+    log_fail "Expected version 2.9.0 in plugin.json, got $EXPECTED_VER"
 fi
 if echo "$STATUS_OUT" | grep -q "$EXPECTED_VER"; then
     log_pass "jules-gate status outputs plugin version ($EXPECTED_VER)"
@@ -118,6 +118,21 @@ if echo "$TOKENS_JSON" | grep -q '"estimated_tokens_spared"'; then
     log_pass "jules-gate tokens --json outputs valid JSON metrics"
 else
     log_fail "jules-gate tokens --json failed to output JSON metrics"
+fi
+
+# Verify close and reply invariants
+CLOSE_OUT=$("$GATE_BIN" close 12345 2>&1 || true)
+if echo "$CLOSE_OUT" | grep -q "https://jules.google.com/task/12345"; then
+    log_pass "jules-gate close outputs expected task dismissal guidance and URL"
+else
+    log_fail "jules-gate close missing task dismissal guidance or URL"
+fi
+
+REPLY_OUT=$("$GATE_BIN" reply 12345 "test_error" 2>&1 || true)
+if echo "$REPLY_OUT" | grep -q "https://jules.google.com/task/12345" && echo "$REPLY_OUT" | grep -q "Using provided text message"; then
+    log_pass "jules-gate reply outputs rapid repair instructions and URL"
+else
+    log_fail "jules-gate reply missing rapid repair instructions or URL"
 fi
 
 # ------------------------------------------------------------

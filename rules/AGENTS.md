@@ -43,4 +43,4 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
 7. **Cloud Session Lifecycle Transparency & Feedback Protocol:**
    * **Dual Patch-Ready States:** Google Jules sessions yield complete patches in both `Completed` and `Awaiting User Feedback` states. In both cases, patches can be pulled immediately via `jules remote pull --session <id>`.
    * **Zero Feedback on Pass:** If local verification passes, merge changes immediately. No feedback is needed; the operator may accept or dismiss the web session on `https://jules.google.com/task/<id>` or via `jules-gate web <id>`.
-   * **In-VM Iteration on Failure:** If local tests fail, reply to the session with pytest stack traces to let Jules repair the patch within the existing VM, avoiding the token cost of a new session.
+   * **In-VM Iteration on Failure:** If local tests fail (`jules-gate verify` fails), utilize the **Cloud VM Repair Protocol**. Run `jules-gate reply <session_id> <failure_log>` to automatically copy the failure trace to the clipboard and launch the web UI, enabling rapid paste-and-repair within the existing Cloud VM.

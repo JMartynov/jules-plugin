@@ -2,11 +2,11 @@
 name: jules-task-controller
 description: >-
   Orchestrate Google Jules (EULIS) coding tasks with mandatory sub-agent execution, automated task splitting,
-  multi-modal delegation (features, code reviews, tests, research spikes), zero-token polling, and gated verification (Version 2.8.0).
+  multi-modal delegation (features, code reviews, tests, research spikes), zero-token polling, and gated verification (Version 2.9.0).
   Use whenever planning, splitting, delegating, or verifying tasks assigned to Jules / EULIS across any programming language.
 ---
 
-# Jules Task Controller (Version 2.8.0)
+# Jules Task Controller (Version 2.9.0)
 
 An enterprise orchestrator for **Google Jules (EULIS)**. Designed to maximize delegation across all software engineering workflows while strictly enforcing **sub-agent isolation** to eliminate token bloat (empirically proven to save **>99.5% of main-thread tokens** through Dynamic Multi-Tier Model Routing).
 
@@ -48,6 +48,8 @@ To maximize token efficiency (<0.8% relative compute cost), the system employs a
 | `jules-gate verify <id> [base_branch]` | Pulls patch to clean branch & runs tests | **Auto-detects pytest, npm, cargo, go, mvn** |
 | `jules-gate merge <id> [base] [--delete-remote]` | Auto-rebases and merges review branch | **Serialized auto-rebase prevents semantic conflicts** |
 | `jules-gate pr <id> [base_branch]` | Pushes verified branch & opens GitHub PR | **Guaranteed green CI, zero wasted runner hours** |
+| `jules-gate close [session_id]` | Dismiss task and open URL to close session | **Direct 1-click web session dismissal** |
+| `jules-gate reply <id> <file>` | Copies failure log and opens VM | **Rapid feedback for in-VM zero-overhead repair** |
 | `jules-gate web [session_id]` | Opens session URL or dashboard in browser | **Direct 1-click cloud session review and dismissal** |
 | `jules-gate ps` | Lists remote Jules sessions and statuses | **Multi-session process monitoring** |
 | `jules-gate status` | Checks health of plugin, CLI, and scripts | **Immediate environment diagnostic** |
@@ -346,6 +348,13 @@ $$\text{[QUEUED]} \longrightarrow \text{[RUNNING]} \longrightarrow \mathbf{\text
    - If local verification fails, `Awaiting User Feedback` provides a zero-overhead window to reply to the session with pytest stack traces, allowing Jules to fix the issue in the same cloud VM without a new session.
 5. **Non-Interactive Completion Directive:**
    - Always include in task prompts: `"Implement all requested changes, verify with tests, and finalize your response directly with a summary without asking open-ended questions so the session cleanly transitions to Completed."`
+
+### Cloud VM Repair Protocol (`jules-gate reply`):
+If local verification (`jules-gate verify`) fails due to integration mismatches, the `reply` workflow provides extreme efficiency:
+1. Copy failure logs: `jules-gate reply <session_id> /tmp/jules-test-XYZ.log`
+2. Tool copies failure trace into system clipboard (`pbcopy`/`xclip`)
+3. Tool instantly launches web UI: `https://jules.google.com/task/<session_id>`
+4. Developer pastes output (`CMD+V`) back into running Cloud VM for rapid in-VM repair, conserving local tokens.
 
 
 
