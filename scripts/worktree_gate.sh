@@ -3,6 +3,7 @@
 # Pulls Jules patch, applies to an isolated branch, runs project tests, and gates integration.
 
 set -euo pipefail
+export PYTHONDONTWRITEBYTECODE=1
 
 usage() {
     echo "Usage: $0 <session_id> [base_branch]"

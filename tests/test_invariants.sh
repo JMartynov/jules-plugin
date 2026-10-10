@@ -302,6 +302,18 @@ rm -rf "$MOCK_DIR"
 echo ""
 echo "--- [Invariant 4: Gated Verification (worktree_gate.sh)] ---"
 
+if grep -q "export PYTHONDONTWRITEBYTECODE=1" "$SCRIPTS_DIR/worktree_gate.sh"; then
+    log_pass "worktree_gate.sh prevents python bytecode generation"
+else
+    log_fail "worktree_gate.sh missing PYTHONDONTWRITEBYTECODE export"
+fi
+
+if grep -q "__pycache__/" "$PLUGIN_ROOT/.gitignore" && grep -q "\*.pyc" "$PLUGIN_ROOT/.gitignore"; then
+    log_pass ".gitignore contains python bytecode exclusions"
+else
+    log_fail ".gitignore missing python bytecode exclusions"
+fi
+
 TEST_REPO=$(mktemp -d "/tmp/jules-test-repo-XXXXXX")
 LOG_DIR=$(mktemp -d "/tmp/jules-logs-XXXXXX")
 
