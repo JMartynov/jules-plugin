@@ -5,6 +5,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
 usage() {
     echo "Usage: $0 [--timeout MINS] <session_id> [<session_id2> ...]"
     exit 1
@@ -76,9 +78,18 @@ while true; do
             echo "   🌐 Web Session: https://jules.google.com/task/$SID"
             COMPLETED_SESSIONS="${COMPLETED_SESSIONS}${SID} "
         elif echo "$STATUS_LINE" | grep -qiE "Awaiting User"; then
-            echo "⚡ [DONE: Patch Ready] Session $SID code generated and ready to pull."
-            echo "   🌐 Web Session: https://jules.google.com/task/$SID (Awaiting User Feedback)"
-            echo "   💡 Note: Cloud session is awaiting web UI feedback/dismissal; git patch is complete."
+            echo "⚡ [INTERACTIVE: Awaiting User Feedback] Session $SID requires user response!"
+            echo "   🌐 Web Session: https://jules.google.com/task/$SID"
+            API_SCRIPT="$SCRIPT_DIR/jules_api.py"
+            if [[ -x "$API_SCRIPT" ]]; then
+                INSPECT_JSON=$("$API_SCRIPT" inspect "$SID" --json 2>/dev/null || true)
+                QUESTION=$(echo "$INSPECT_JSON" | grep -o '"question": *"[^"]*"' | sed -E 's/"question": *"([^"]*)"/\1/' || true)
+                if [[ -n "$QUESTION" ]]; then
+                    echo "   ❓ Jules Question: $QUESTION"
+                fi
+            fi
+            echo "   ⛔ STRICT GUARD: Task is in interactive state. DO NOT MERGE. DO NOT CONSIDER COMPLETED."
+            echo "   💡 Action: Use 'jules-gate interact $SID \"<answer>\"' to unblock Jules."
             AWAITING_FEEDBACK_SESSIONS="${AWAITING_FEEDBACK_SESSIONS}${SID} "
         elif echo "$STATUS_LINE" | grep -qi "Failed"; then
             echo "❌ [FAILED] Session $SID failed remotely!"
@@ -103,7 +114,7 @@ while true; do
             if [[ "$COMPLETED_SESSIONS" == *" $SID "* ]]; then
                 echo "  - Session $SID: Completed (https://jules.google.com/task/$SID)"
             elif [[ "$AWAITING_FEEDBACK_SESSIONS" == *" $SID "* ]]; then
-                echo "  - Session $SID: Patch Ready / Awaiting User Feedback (https://jules.google.com/task/$SID)"
+                echo "  - Session $SID: Interactive / Awaiting User Feedback (https://jules.google.com/task/$SID)"
             else
                 echo "  - Session $SID: Failed (https://jules.google.com/task/$SID)"
             fi
@@ -114,7 +125,17 @@ while true; do
     sleep 30
 done
 
-# Exit non-zero if any session failed
+# Check if any session is in interactive state (Exit Code 10)
+for SID in "${SESSIONS[@]}"; do
+    if [[ "$AWAITING_FEEDBACK_SESSIONS" == *" $SID "* ]]; then
+        echo ""
+        echo "⚠️  [INTERACTIVE GUARD ACTIVATED] One or more sessions are awaiting input (Exit code 10)."
+        echo "   Do NOT merge review branches. Provide answers via 'jules-gate interact <session_id> \"<answer>\"'."
+        exit 10
+    fi
+done
+
+# Exit non-zero if any session failed (Exit Code 2)
 for SID in "${SESSIONS[@]}"; do
     if [[ "$FAILED_SESSIONS" == *" $SID "* ]]; then
         exit 2

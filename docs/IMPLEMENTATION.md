@@ -1,12 +1,12 @@
-# Jules Task Controller v2.9.0 Implementation Details
+# Jules Task Controller v3.0.0 Implementation Details
 
-This document comprehensively outlines the architectural changes, features, and optimizations introduced in **Version 2.9.0** of the Jules Task Controller.
+This document comprehensively outlines the architectural changes, features, and optimizations introduced in **Version 3.0.0** of the Jules Task Controller.
 
 ---
 
 ## 1. 4-Stage Lifecycle Token Insulation (>99.5% Token Savings)
 
-The v2.9.0 architecture evolves the system into an enterprise **4-stage multi-tier orchestration system** that dynamically routes tasks to the most efficient model, sparing over 99.5% of main-thread tokens.
+The v3.0.0 architecture evolves the system into an enterprise **4-stage multi-tier orchestration system** that dynamically routes tasks to the most efficient model, sparing over 99.5% of main-thread tokens.
 
 **Token Comparison Matrix:**
 | Architecture Approach | Token Cost | Notes |
@@ -17,6 +17,7 @@ The v2.9.0 architecture evolves the system into an enterprise **4-stage multi-ti
 | 4-Stage Lifecycle (v2.5.0) | <15,000 tokens | Pre-dispatch research + strict no-polling rules. |
 | Full 6-Layer Shield (v2.6.0) | <10,000 tokens | Serialized auto-rebase, pre-dispatch linter, strict primary sweep ban. |
 | Telemetry & Heuristics (v2.7.0) | <8,000 tokens | Token economy telemetry, pre-dispatch complexity heuristics, efficiency override. |
+| Interactive Resolution (v3.0.0) | <8,000 tokens | Autonomous question resolution, strict completion guardrails, in-VM interaction. |
 
 ### Dynamic Efficiency Threshold (Local Execution Override)
 The core philosophy is to maximize delegation to Jules to offload heavy code generation, refactoring, and test synthesis. However, if delegating a task introduces disproportionate orchestration overhead (such as 1-line syntax/import fixes, single version bumps, or quick path adjustments) where cloud VM dispatch and sub-agent coordination consume MORE tokens than a direct local edit, the orchestrator overrides delegation and executes locally on the IDE thread.
@@ -238,14 +239,45 @@ In Google Jules's distributed VM architecture, task states diverge into two dist
 
 ---
 
+## 6. Autonomous Multi-Tier Interactive Task Resolution & Strict Guardrails (v3.0.0)
+
+Version 3.0.0 establishes an active escalation protocol for sessions that enter `Awaiting User Feedback`:
+
+### Key Architectural Invariants:
+1. **Strict Completion & Merging Guardrail:**
+   - Tasks in `Awaiting User Feedback` / interactive state are **never considered completed**.
+   - `scripts/jules_poll_wait.sh` halts and exits with **code 10** (INTERACTIVE_STATE).
+   - `jules-gate merge` aborts with **exit code 5** if the target session is in interactive state.
+   - Review branches are only merged after Jules reaches true terminal `Completed` status.
+2. **Direct Google AIDA REST API Bridge (`scripts/jules_api.py`):**
+   - Question Extraction: `GET https://aida.googleapis.com/v1/swebot/tasks/{id}/activities` extracts the active prompt from `agentMessaged.text` when `requiresUserResponse: true`.
+   - Interaction Dispatch: `POST https://aida.googleapis.com/v1/swebot/tasks/{id}:interact` delivers structured feedback:
+     ```json
+     {
+       "taskId": "<session_id>",
+       "userActivity": {
+         "feedbackGiven": {
+           "feedback": "<answer>"
+         }
+       }
+     }
+     ```
+3. **The 3-Tier Escalation Hierarchy:**
+   - **Tier 1 (Sub-Agent):** Evaluates question against task contract. If specified, sends answer via `jules-gate interact <id> "<answer>"` and resumes waiting.
+   - **Tier 2 (Main Calling Agent):** When underspecified in contract, sub-agent sends message to Main Calling Agent.
+   - **Tier 3 (Human Developer):** Main Calling Agent prompts developer via `ask_question`.
+
+---
+
 ## Architecture and Command Table
 
-| Component | Location | Responsibility / Change in v2.9.0 |
+| Component | Location | Responsibility / Change in v3.0.0 |
 | :--- | :--- | :--- |
-| **`jules-gate` CLI** | `bin/jules-gate` | Added `close` and `reply` subcommands, clipboard integration, web URL embedding, enhanced `tokens` with awaiting vs completed breakdown, added completion directive check to `lint`. |
-| **Status Poller** | `scripts/jules_poll_wait.sh` | Cleanly differentiates `Completed` vs `Awaiting User Feedback` (`Patch Ready`), emits session web URLs. |
+| **`jules-gate` CLI** | `bin/jules-gate` | Added `inspect` & `interact` subcommands, strict interactive merge guard (exit 5), v3.0.0 status diagnostics. |
+| **AIDA API Engine** | `scripts/jules_api.py` | Direct OAuth bridge to Google AIDA backend for live activity inspection and in-VM feedback. |
+| **Status Poller** | `scripts/jules_poll_wait.sh` | Detects interactive state, extracts active question, outputs strict merge warning, and exits 10. |
 | **Gated Verification** | `scripts/worktree_gate.sh` | Emits direct web session link, telemetry logging, diagnostic sieve (`tail -n 40`). |
-| **Invariant Suite** | `tests/test_invariants.sh` | 43 automated assertions validating CLI, lifecycle states, completion directive linter, web launcher, and multi-tier rules. |
-| **Token Shield** | Architecture Standard | Benchmarked >99.5% token savings across 6-layer shield. |
+| **Invariant Suite** | `tests/test_invariants.sh` | Comprehensive automated assertions validating CLI, exit code 10, merge guard, API engine, and escalation rules. |
+| **Token Shield** | Architecture Standard | Benchmarked >99.5% token savings across multi-tier routing. |
 | **Artifact Taxonomy** | `docs/` | Structured taxonomy for reviews, spikes, implementation, and reports. |
 

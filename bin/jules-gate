@@ -33,6 +33,8 @@ Commands:
   pr <session_id> [base_branch]          Verify and push review branch, opening a verified GitHub PR via `gh`.
   lint <repo> [prompt_file]              Pre-flight contract linter to validate repo connection and prompt spec.
   tokens [--json] [--reset]              Display cumulative estimated tokens spared across sessions.
+  inspect <session_id> [--json]          Inspect activity stream & extract interactive question from Jules.
+  interact <session_id> <msg_or_file>    Send answer directly into running Jules Cloud VM to resume execution.
   close [session_id]                     Open Jules session to close it.
   reply [session_id] [file_or_msg]       Copy failure trace and open Jules session for in-VM repair.
   web [session_id]                       Open Jules session or dashboard in the default browser.
@@ -89,6 +91,18 @@ case "$CMD" in
         fi
         REVIEW_BRANCH="jules/review-${SESSION_ID}"
         
+        # Strict Interactive Guard: Refuse to merge if task is in interactive state
+        if command -v jules >/dev/null 2>&1; then
+            REMOTE_STATE=$(jules remote list --session 2>/dev/null | grep -E "\b$SESSION_ID\b" || true)
+            if echo "$REMOTE_STATE" | grep -qiE "Awaiting User"; then
+                echo "❌ [STRICT GUARD ERROR] Cannot merge session $SESSION_ID:"
+                echo "   The remote session is currently in an INTERACTIVE state (Awaiting User Feedback)."
+                echo "   Rules mandate that interactive tasks must NOT be merged or considered completed."
+                echo "   💡 Action: Run 'jules-gate inspect $SESSION_ID' to see the question, and 'jules-gate interact $SESSION_ID \"<answer>\"' to resolve it."
+                exit 5
+            fi
+        fi
+
         "$SCRIPTS_DIR/worktree_gate.sh" "$SESSION_ID" "$BASE_BRANCH"
         
         if [[ "$AUTO_REBASE" == "true" ]]; then
@@ -411,6 +425,23 @@ EOF
         elif command -v xdg-open >/dev/null 2>&1; then
             xdg-open "$URL" 2>/dev/null || true
         fi
+        ;;
+    inspect)
+        SESSION_ID="${1:-}"
+        if [[ -z "$SESSION_ID" ]]; then
+            echo "Usage: jules-gate inspect <session_id> [--json]"
+            exit 1
+        fi
+        python3 "$SCRIPTS_DIR/jules_api.py" inspect "$SESSION_ID" "${2:-}"
+        ;;
+    interact)
+        SESSION_ID="${1:-}"
+        MESSAGE="${2:-}"
+        if [[ -z "$SESSION_ID" || -z "$MESSAGE" ]]; then
+            echo "Usage: jules-gate interact <session_id> <message_or_file>"
+            exit 1
+        fi
+        python3 "$SCRIPTS_DIR/jules_api.py" interact "$SESSION_ID" "$MESSAGE"
         ;;
     web|open)
         SESSION_ID="${1:-}"

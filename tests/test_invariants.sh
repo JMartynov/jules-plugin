@@ -51,7 +51,7 @@ else
     log_fail "jules-gate help failed to output command summary"
 fi
 
-for subcmd in wait verify merge pr ps status lint tokens web close reply; do
+for subcmd in wait verify merge pr ps status lint tokens web close reply inspect interact; do
     if echo "$HELP_OUT" | grep -q "$subcmd"; then
         log_pass "Subcommand '$subcmd' documented in help output"
     else
@@ -61,8 +61,8 @@ done
 
 STATUS_OUT=$("$GATE_BIN" status 2>&1 || true)
 EXPECTED_VER=$(grep '"version"' "$PLUGIN_ROOT/plugin.json" | head -n 1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
-if [[ "$EXPECTED_VER" != "2.9.0" ]]; then
-    log_fail "Expected version 2.9.0 in plugin.json, got $EXPECTED_VER"
+if [[ "$EXPECTED_VER" != "3.0.0" ]]; then
+    log_fail "Expected version 3.0.0 in plugin.json, got $EXPECTED_VER"
 fi
 if echo "$STATUS_OUT" | grep -q "$EXPECTED_VER"; then
     log_pass "jules-gate status outputs plugin version ($EXPECTED_VER)"
@@ -208,6 +208,20 @@ else
     log_fail "SKILL.md or rules/AGENTS.md missing non-interactive task completion directive"
 fi
 
+# Ensure 3-Tier Escalation Protocol is codified
+if grep -q "3-Tier" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md" && grep -q "3-Tier" "$PLUGIN_ROOT/rules/AGENTS.md"; then
+    log_pass "SKILL.md and rules/AGENTS.md document 3-Tier Interactive Task Resolution Protocol"
+else
+    log_fail "SKILL.md or rules/AGENTS.md missing 3-Tier Interactive Task Resolution Protocol"
+fi
+
+# Ensure Strict No-Merge on interactive state is codified
+if grep -q "Strict No-Merge" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md" && grep -q "Strict No-Merge" "$PLUGIN_ROOT/rules/AGENTS.md"; then
+    log_pass "SKILL.md and rules/AGENTS.md enforce Strict No-Merge on interactive state"
+else
+    log_fail "SKILL.md or rules/AGENTS.md missing Strict No-Merge rule"
+fi
+
 # ------------------------------------------------------------
 # INVARIANT 3: Zero-Token Polling Watcher (jules_poll_wait.sh)
 # ------------------------------------------------------------
@@ -254,17 +268,29 @@ POLL_EXIT=$?
 set -e
 assert_eq "$POLL_EXIT" "0" "jules_poll_wait handles multiple parallel sessions successfully"
 
-# Case 2D: Session in Awaiting User Feedback (Patch Ready)
+# Case 2D: Session in Awaiting User Feedback (Interactive State Guard)
 echo "3333333333333333 Awaiting User Feedback" > "$MOCK_STATE_FILE"
 set +e
 AWAIT_OUT=$("$SCRIPTS_DIR/jules_poll_wait.sh" 3333333333333333 --timeout 1 2>&1)
 POLL_AWAIT_EXIT=$?
 set -e
-assert_eq "$POLL_AWAIT_EXIT" "0" "jules_poll_wait detects Awaiting User Feedback with exit code 0"
-if echo "$AWAIT_OUT" | grep -q "Patch Ready" && echo "$AWAIT_OUT" | grep -q "https://jules.google.com/task/3333333333333333"; then
-    log_pass "jules_poll_wait outputs patch ready message and web task link for Awaiting User Feedback"
+assert_eq "$POLL_AWAIT_EXIT" "10" "jules_poll_wait detects Awaiting User Feedback and exits 10 (Interactive Guard)"
+if echo "$AWAIT_OUT" | grep -q "INTERACTIVE" && echo "$AWAIT_OUT" | grep -q "DO NOT MERGE"; then
+    log_pass "jules_poll_wait outputs interactive guard warning (DO NOT MERGE)"
 else
-    log_fail "jules_poll_wait missing patch ready message or web URL for Awaiting User Feedback"
+    log_fail "jules_poll_wait missing interactive guard warning"
+fi
+
+# Invariant: jules-gate merge refuses to merge interactive session
+set +e
+MERGE_REFUSE_OUT=$("$GATE_BIN" merge 3333333333333333 2>&1)
+MERGE_REFUSE_EXIT=$?
+set -e
+assert_eq "$MERGE_REFUSE_EXIT" "5" "jules-gate merge blocks merging interactive sessions (exit code 5)"
+if echo "$MERGE_REFUSE_OUT" | grep -q "STRICT GUARD ERROR"; then
+    log_pass "jules-gate merge prints STRICT GUARD ERROR on interactive session"
+else
+    log_fail "jules-gate merge missing STRICT GUARD ERROR message"
 fi
 
 export PATH="$OLD_PATH"
@@ -466,6 +492,33 @@ fi
 touch go.mod
 if [[ -f "go.mod" ]]; then
     log_pass "Go go.mod runner detectable"
+fi
+
+# ------------------------------------------------------------
+# INVARIANT 7: Google AIDA API Engine (jules_api.py)
+# ------------------------------------------------------------
+echo ""
+echo "--- [Invariant 7: Google AIDA API Engine (jules_api.py)] ---"
+
+API_USAGE_OUT=$(python3 "$SCRIPTS_DIR/jules_api.py" 2>&1 || true)
+if echo "$API_USAGE_OUT" | grep -q "jules_api.py <inspect|interact>"; then
+    log_pass "scripts/jules_api.py outputs usage on missing arguments"
+else
+    log_fail "scripts/jules_api.py missing usage output"
+fi
+
+GATE_INSPECT_USAGE=$("$GATE_BIN" inspect 2>&1 || true)
+if echo "$GATE_INSPECT_USAGE" | grep -q "Usage: jules-gate inspect"; then
+    log_pass "jules-gate inspect enforces session_id argument"
+else
+    log_fail "jules-gate inspect missing usage validation"
+fi
+
+GATE_INTERACT_USAGE=$("$GATE_BIN" interact 2>&1 || true)
+if echo "$GATE_INTERACT_USAGE" | grep -q "Usage: jules-gate interact"; then
+    log_pass "jules-gate interact enforces argument validation"
+else
+    log_fail "jules-gate interact missing usage validation"
 fi
 
 # Cleanup

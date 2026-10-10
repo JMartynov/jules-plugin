@@ -1,6 +1,6 @@
-# Google Jules (EULIS) Task Controller Plugin (Version 2.9.0)
+# Google Jules (EULIS) Task Controller Plugin (Version 3.0.0)
 
-[![Version](https://img.shields.io/badge/version-2.9.0-blue.svg)](plugin.json)
+[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](plugin.json)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](README.md)
 [![Status](https://img.shields.io/badge/status-active-success.svg)](https://github.com/JMartynov/jules-plugin)
 
@@ -21,13 +21,13 @@ An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Design
 
 ---
 
-## 🌟 What's New in Version 2.9.0
+## 🌟 What's New in Version 3.0.0
 
-* **Cloud VM Rapid Reply & Web Session Closing:** New `jules-gate close` command prints task dismissal guidance and directly opens the session URL. The powerful `jules-gate reply` command automates rapid feedback for in-VM test repair by copying failure traces to the clipboard and opening the remote VM for instant pasting.
-* **Cloud Session Lifecycle Transparency:** Cleanly distinguishes between auto-closed remote sessions (`Completed`) and code-ready sessions awaiting user acceptance (`Awaiting User Feedback`). Emits direct clickable links `https://jules.google.com/task/<session_id>` across all wait, verify, merge, and PR commands.
-* **Browser Launcher (`jules-gate web [session_id]`):** Instant one-click or command-line launching of any Jules cloud task or dashboard in the default web browser.
-* **Non-Interactive Completion Directive Linter:** `jules-gate lint` checks for explicit completion directives in prompt contracts, ensuring Jules finalizes without asking conversational follow-ups and avoiding unnecessary `Awaiting User Feedback` pauses.
-* **Enhanced Telemetry Breakdown:** `jules-gate tokens` tracks and displays both `Completed` and `Awaiting User Feedback` remote deliveries in terminal output and `--json` schemas.
+* **Autonomous Multi-Tier Interactive Task Resolution:** When Jules pauses in an interactive state (`Awaiting User Feedback`), the system retrieves the question via `jules-gate inspect` and sends feedback directly into the running Cloud VM via `jules-gate interact` through the Google AIDA REST API.
+* **Strict Completion & Merge Guardrails:** Tasks in interactive state are **never** considered completed and review branches are strictly prevented from merging (`jules-gate wait` exits with code 10, `jules-gate merge` aborts with exit code 5).
+* **3-Tier Escalation Hierarchy:** Sub-agents first attempt autonomous clarification based on the task contract; if underspecified, they escalate to the Main Calling Agent, which prompts the user via `ask_question`.
+* **Universal Cloud VM API Engine (`scripts/jules_api.py`):** Real-time integration with Google AIDA API for activity streaming, question extraction, and user interaction.
+* **Cloud VM Rapid Reply & Web Session Closing:** `jules-gate close` and `jules-gate reply` for instant browser launch and clipboard trace synchronization.
 
 ---
 

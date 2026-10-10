@@ -2,11 +2,11 @@
 name: jules-task-controller
 description: >-
   Orchestrate Google Jules (EULIS) coding tasks with mandatory sub-agent execution, automated task splitting,
-  multi-modal delegation (features, code reviews, tests, research spikes), zero-token polling, and gated verification (Version 2.9.0).
+  multi-modal delegation, zero-token polling, 3-tier interactive task resolution, and gated verification (Version 3.0.0).
   Use whenever planning, splitting, delegating, or verifying tasks assigned to Jules / EULIS across any programming language.
 ---
 
-# Jules Task Controller (Version 2.9.0)
+# Jules Task Controller (Version 3.0.0)
 
 An enterprise orchestrator for **Google Jules (EULIS)**. Designed to maximize delegation across all software engineering workflows while strictly enforcing **sub-agent isolation** to eliminate token bloat (empirically proven to save **>99.5% of main-thread tokens** through Dynamic Multi-Tier Model Routing).
 
@@ -44,9 +44,11 @@ To maximize token efficiency (<0.8% relative compute cost), the system employs a
 | :--- | :--- | :--- |
 | `jules-gate lint <repo> [prompt_file]` | Pre-flight contract linter & complexity checker | **Validates connection, bounds, and flags trivial micro-tasks** |
 | `jules-gate tokens [--json] [--reset]` | Token economy telemetry | **Reports cumulative tokens and dollars spared across sessions** |
-| `jules-gate wait <id...> --timeout 30` | Polls sessions in terminal background | **Consumes 0 LLM input tokens while waiting** |
+| `jules-gate wait <id...> --timeout 30` | Polls sessions in terminal background | **Consumes 0 LLM input tokens; exits 10 if interactive** |
+| `jules-gate inspect <session_id>` | Extracts interactive questions from cloud task | **Retrieves exact Jules prompt needing answer** |
+| `jules-gate interact <id> <msg>` | Sends feedback directly into running cloud VM | **Unblocks Jules without restarting session** |
 | `jules-gate verify <id> [base_branch]` | Pulls patch to clean branch & runs tests | **Auto-detects pytest, npm, cargo, go, mvn** |
-| `jules-gate merge <id> [base] [--delete-remote]` | Auto-rebases and merges review branch | **Serialized auto-rebase prevents semantic conflicts** |
+| `jules-gate merge <id> [base] [--delete-remote]` | Auto-rebases and merges review branch | **Guarded: Refuses to merge interactive tasks (exit 5)** |
 | `jules-gate pr <id> [base_branch]` | Pushes verified branch & opens GitHub PR | **Guaranteed green CI, zero wasted runner hours** |
 | `jules-gate close [session_id]` | Dismiss task and open URL to close session | **Direct 1-click web session dismissal** |
 | `jules-gate reply <id> <file>` | Copies failure log and opens VM | **Rapid feedback for in-VM zero-overhead repair** |
@@ -355,6 +357,56 @@ If local verification (`jules-gate verify`) fails due to integration mismatches,
 2. Tool copies failure trace into system clipboard (`pbcopy`/`xclip`)
 3. Tool instantly launches web UI: `https://jules.google.com/task/<session_id>`
 4. Developer pastes output (`CMD+V`) back into running Cloud VM for rapid in-VM repair, conserving local tokens.
+
+---
+
+## 9. Autonomous Multi-Tier Interactive Task Resolution & Completion Guardrails (v3.0.0)
+
+When Google Jules tasks enter an interactive state (`Awaiting User Feedback` / `requiresUserResponse: true`), the system activates the **3-Tier Interactive Resolution Protocol**:
+
+```mermaid
+sequenceDiagram
+    participant Jules as Google Jules Cloud VM
+    participant Sub as Sub-Agent (Worker)
+    participant Main as Main Calling Agent (Pro)
+    participant User as Human User
+
+    Jules->>Sub: Interactive Question ("requiresUserResponse: true")
+    Note over Sub: jules-gate wait exits 10 (Interactive State)
+    Note over Sub: Strict Guard: DO NOT MERGE. DO NOT MARK COMPLETED.
+    Sub->>Sub: jules-gate inspect <id> (Extract Question)
+    
+    alt Sub-Agent Can Answer from Contract / Context
+        Sub->>Jules: jules-gate interact <id> "<answer>"
+        Note over Sub: Resume jules-gate wait until Completed
+    else Sub-Agent Cannot Answer (Underspecified / Ambiguous)
+        Sub->>Main: send_message(Question + Context)
+        alt Main Agent Can Answer from Request Scope
+            Main-->>Sub: send_message(Answer)
+            Sub->>Jules: jules-gate interact <id> "<answer>"
+        else Truly Ambiguous / Human Choice Required
+            Main->>User: ask_question(Modal)
+            User-->>Main: User Decision
+            Main-->>Sub: send_message(Answer)
+            Sub->>Jules: jules-gate interact <id> "<answer>"
+        end
+        Note over Sub: Resume jules-gate wait until Completed
+    end
+
+    Jules-->>Sub: Terminal Status: Completed (Exit code 0)
+    Note over Sub: jules-gate verify & jules-gate merge unlocked!
+```
+
+### Core Invariants of Version 3.0.0:
+1. **Strict No-Merge Guardrail:**  
+   If a session is in `Awaiting User Feedback`, `jules-gate merge` will actively abort with exit code 5. Tasks are never merged or marked completed until Jules reaches clean `Completed` status.
+2. **Autonomous Contract Clarification:**  
+   Sub-agents first attempt to resolve clarifications using the existing task specifications and guidelines before escalating.
+3. **Structured Escalation Hierarchy:**  
+   Sub-agents escalate to the Main Calling Agent via `send_message`, which can prompt the human user via `ask_question` when necessary.
+4. **Direct Cloud VM Interaction (`jules-gate interact`):**  
+   Sends answers directly into the running Cloud VM via the Google AIDA REST API, resuming execution with zero local token generation.
+
 
 
 

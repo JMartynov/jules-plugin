@@ -1,6 +1,6 @@
 # Jules Task Controller: Operational Runbook
 
-**Version:** 2.9.0  
+**Version:** 3.0.0  
 **Target Audience:** Software Engineers, DevOps, Autonomous AI Agents (Antigravity / Gemini IDE, Claude Code, Cursor, JetBrains, VS Code)  
 **System Repository:** [`https://github.com/JMartynov/jules-plugin`](https://github.com/JMartynov/jules-plugin)
 
@@ -21,6 +21,7 @@
 12. [Pre-Dispatch Contract Linter & Serialized Auto-Rebase](#12-pre-dispatch-contract-linter--serialized-auto-rebase)
 13. [Token Economy Telemetry & Complexity Heuristics](#13-token-economy-telemetry--complexity-heuristics)
 14. [Cloud Session Lifecycle Transparency & Web Management](#14-cloud-session-lifecycle-transparency--web-management)
+15. [Autonomous Multi-Tier Interactive Task Resolution & Strict Completion Guardrails](#15-autonomous-multi-tier-interactive-task-resolution--strict-completion-guardrails)
 
 ---
 
@@ -529,4 +530,42 @@ Google Jules uses asynchronous Cloud VMs that transition through distinct states
 5. **Prompt Optimization (Non-Interactive Directive):**
    To avoid Jules pausing in `Awaiting User Feedback` when self-contained tasks finish, always include:
    > *"Implement all requested changes, verify with tests, and finalize your response directly with a summary without asking open-ended questions so the session cleanly transitions to Completed."*
+
+---
+
+## 15. Autonomous Multi-Tier Interactive Task Resolution & Strict Completion Guardrails
+
+### 1. Operational Invariant: No Merging in Interactive State
+* **State Check:** When `jules-gate wait` encounters a task in `Awaiting User Feedback`, it emits a prominent warning and **exits with code 10**.
+* **Strict Merge Guard:** `jules-gate merge` will refuse to merge review branches associated with interactive sessions, aborting with exit code 5.
+* **Invariant:** Review branches are only verified and merged once Jules has concluded with a true terminal success state (`Completed`).
+
+### 2. Live Question Inspection (`jules-gate inspect`)
+Inspect the active activity stream and extract the exact question or prompt requested by Jules:
+```bash
+# Formatted inspection output
+jules-gate inspect <session_id>
+
+# Machine-readable JSON output
+jules-gate inspect <session_id> --json
+```
+
+### 3. Direct In-VM Interaction (`jules-gate interact`)
+Send answers directly back into the running Jules Cloud VM to resume execution:
+```bash
+# Passing text answer directly
+jules-gate interact <session_id> "Proceed with implementing async aiohttp transport."
+
+# Passing text from a clarification file
+jules-gate interact <session_id> .jules/clarifications/task11_answer.txt
+```
+
+### 4. The 3-Tier Escalation Hierarchy
+1. **Tier 1 (Sub-Agent Autonomous Clarification):**  
+   The sub-agent evaluates the question from `jules-gate inspect` against the task contract. If specified, the sub-agent answers via `jules-gate interact` and continues waiting.
+2. **Tier 2 (Main Calling Agent Escalation):**  
+   If the question is underspecified in the sub-agent's contract, the sub-agent sends a message to the Main Calling Agent via `send_message`.
+3. **Tier 3 (Human Developer Escalation):**  
+   The Main Calling Agent prompts the user via `ask_question`. Upon answer, the response flows down: User ➔ Main Agent ➔ Sub-Agent ➔ `jules-gate interact` ➔ Jules Cloud VM.
+
 
