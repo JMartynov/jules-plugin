@@ -96,7 +96,7 @@ fi
 
 if [[ -n "$TEST_CMD" ]]; then
     echo "==> Running local verification: $TEST_CMD"
-    TEST_LOG=$(mktemp "/tmp/jules-test-XXXXXX.log")
+    TEST_LOG=$(mktemp "/tmp/jules-test-XXXXXX")
     if $TEST_CMD > "$TEST_LOG" 2>&1; then
         echo "✅ All tests passed on branch $REVIEW_BRANCH!"
         rm -f "$TEST_LOG"
