@@ -45,7 +45,7 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
    * **Zero Feedback on Pass:** If local verification passes, merge changes immediately. No feedback is needed; the operator may accept or dismiss the web session on `https://jules.google.com/task/<id>` or via `jules-gate web <id>`.
    * **In-VM Iteration on Failure:** If local tests fail (`jules-gate verify` fails), utilize the **Cloud VM Repair Protocol**. Run `jules-gate reply <session_id> <failure_log>` to automatically copy the failure trace to the clipboard and launch the web UI, enabling rapid paste-and-repair within the existing Cloud VM.
 
-8. **Autonomous 3-Tier Interactive Task Resolution & Auto-Answer Heuristics (v3.2.0):**
+8. **Autonomous 3-Tier Interactive Task Resolution & Auto-Answer Heuristics (v3.3.0):**
    * **Strict No-Merge on Interactive State:** Sub-agents and orchestrators must NEVER merge review branches or consider a task completed while a session is in `Awaiting User Feedback` / interactive state (`jules-gate wait` exits 10). `jules-gate merge` strictly blocks merges with exit code 5.
    * **Auto-Answer Heuristics (`--interactive`):** When running `jules-gate wait --interactive` (or `jules-gate auto-answer <id>`), common boilerplate review follow-ups (e.g. "Should I open a PR or adjust anything?") are automatically recognized and resolved with a standard completion directive, unblocking Jules autonomously without human interruption.
    * **Sub-Agent Autonomous Clarification:** If input is substantive, the sub-agent runs `jules-gate inspect <id>` to retrieve Jules's question. If the sub-agent can answer based on the task contract, it sends the response via `jules-gate interact <id> "<answer>"` and resumes waiting until `Completed`.

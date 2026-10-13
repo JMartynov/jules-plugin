@@ -140,9 +140,9 @@ The universal orchestrator CLI is installed in your system PATH at `/Users/ivan/
 | **`auto-answer`** | `jules-gate auto-answer <id>` | Evaluates heuristics and auto-replies to boilerplate sign-offs autonomously. |
 | **`inspect`** | `jules-gate inspect <id> [--json]` | Extracts interactive questions and prompt status from Google Jules Cloud VM. |
 | **`interact`** | `jules-gate interact <id> <msg>` | Injects feedback directly into running Cloud VM to resume execution. |
-| **`verify`** | `jules-gate verify <id> [base_branch]` | Pulls patch to `jules/review-<id>`, applies diff, runs auto-detected tests, and reports pass/fail. |
-| **`merge`** | `jules-gate merge <id> [base] [--delete-remote]` | Executes `verify`, merges into base branch with `--no-ff`, and deletes the review branch. Refuses merge on interactive tasks (exit 5). |
-| **`pr`** | `jules-gate pr <id> [base_branch]` | Executes `verify`, pushes branch to origin, and opens a GitHub PR via `gh pr create`. |
+| **`verify`** | `jules-gate verify <id> [base] [--sandbox] [--retry-flaky <N>]` | Pulls patch, applies diff, runs auto-detected tests (optionally in a `--sandbox` container), and reports pass/fail (retrying up to `<N>` times). |
+| **`merge`** | `jules-gate merge <id> [base] [--sandbox] [--retry-flaky <N>]` | Executes `verify`, merges into base branch with `--no-ff`, and deletes the review branch. Refuses merge on interactive tasks (exit 5). |
+| **`pr`** | `jules-gate pr <id> [base] [--sandbox] [--retry-flaky <N>]` | Executes `verify`, pushes branch to origin, and opens a GitHub PR via `gh pr create`. |
 | **`close`** | `jules-gate close [id]` | Web session dismissal and browser launcher. |
 | **`reply`** | `jules-gate reply [id] [log]` | Rapid in-VM test repair. |
 | **`ps`** | `jules-gate ps [flags]` | Lists remote Jules sessions, linked repositories, and their execution statuses. |
@@ -156,10 +156,10 @@ The universal orchestrator CLI is installed in your system PATH at `/Users/ivan/
 jules-plugin/
 ├── .gitignore                               # Clean git tracking (ignores .jules/, *.patch)
 ├── LICENSE                                  # Apache License 2.0
-├── README.md                                # Comprehensive guide & architecture (v2.4.0)
+├── README.md                                # Comprehensive guide & architecture (v3.3.0)
 ├── RUNBOOK.md                               # In-Depth Operational Runbook & Playbooks
 ├── install.sh                               # Global installer script
-├── plugin.json                              # Manifest (v2.4.0)
+├── plugin.json                              # Manifest (v3.3.0)
 ├── bin/
 │   └── jules-gate                           # Portable, self-contained orchestrator CLI
 ├── docs/                                    # System architecture, reviews, spikes & reports
