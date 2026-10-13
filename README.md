@@ -1,6 +1,6 @@
 # Google Jules (EULIS) Task Controller Plugin (Version 3.0.0)
 
-[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](plugin.json)
+[![Version](https://img.shields.io/badge/version-3.2.0-blue.svg)](plugin.json)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](README.md)
 [![Status](https://img.shields.io/badge/status-active-success.svg)](https://github.com/JMartynov/jules-plugin)
 

@@ -361,7 +361,7 @@ If local verification (`jules-gate verify`) fails due to integration mismatches,
 
 ---
 
-## 9. Autonomous Multi-Tier Interactive Task Resolution & Auto-Answer Heuristics (v3.1.0)
+## 9. Autonomous Multi-Tier Interactive Task Resolution & Auto-Answer Heuristics (v3.2.0)
 
 When Google Jules tasks enter an interactive state (`Awaiting User Feedback` / `requiresUserResponse: true`), the system activates the **3-Tier Interactive Resolution Protocol**:
 

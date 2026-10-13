@@ -533,7 +533,7 @@ Google Jules uses asynchronous Cloud VMs that transition through distinct states
 
 ---
 
-## 15. Autonomous Multi-Tier Interactive Task Resolution & Auto-Answer Heuristics (v3.1.0)
+## 15. Autonomous Multi-Tier Interactive Task Resolution & Auto-Answer Heuristics (v3.2.0)
 
 ### 1. Operational Invariant: No Merging in Interactive State
 * **State Check:** When `jules-gate wait` encounters a task in `Awaiting User Feedback`, it emits a prominent warning and **exits with code 10**.

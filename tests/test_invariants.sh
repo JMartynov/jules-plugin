@@ -61,8 +61,8 @@ done
 
 STATUS_OUT=$("$GATE_BIN" status 2>&1 || true)
 EXPECTED_VER=$(grep '"version"' "$PLUGIN_ROOT/plugin.json" | head -n 1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
-if [[ "$EXPECTED_VER" != "3.1.0" ]]; then
-    log_fail "Expected version 3.1.0 in plugin.json, got $EXPECTED_VER"
+if [[ "$EXPECTED_VER" != "3.2.0" ]]; then
+    log_fail "Expected version 3.2.0 in plugin.json, got $EXPECTED_VER"
 fi
 if echo "$STATUS_OUT" | grep -q "$EXPECTED_VER"; then
     log_pass "jules-gate status outputs plugin version ($EXPECTED_VER)"
@@ -570,9 +570,46 @@ else
     log_fail "scripts/jules_api.py evaluate_auto_answer heuristic failed: $AUTO_HEURISTIC_TEST"
 fi
 
+# ------------------------------------------------------------
+# INVARIANT 9: Hardening & Safety Blueprint (v3.2.0)
+# ------------------------------------------------------------
+echo ""
+echo "--- [Invariant 9: Hardening & Safety Blueprint (v3.2.0)] ---"
+
+if grep -q "git worktree add" "$SCRIPTS_DIR/worktree_gate.sh"; then
+    log_pass "worktree_gate.sh uses git worktree add for isolation"
+else
+    log_fail "worktree_gate.sh missing true git worktree isolation"
+fi
+
+if ! grep -q "git checkout -f" "$SCRIPTS_DIR/worktree_gate.sh"; then
+    log_pass "worktree_gate.sh has completely removed destructive git checkout -f"
+else
+    log_fail "worktree_gate.sh still contains destructive git checkout -f"
+fi
+
+if grep -q "trap 'cleanup' EXIT INT TERM" "$SCRIPTS_DIR/worktree_gate.sh"; then
+    log_pass "worktree_gate.sh has signal traps (trap cleanup EXIT INT TERM)"
+else
+    log_fail "worktree_gate.sh missing proper cleanup traps"
+fi
+
+if grep -q "ssl.create_default_context()" "$SCRIPTS_DIR/jules_api.py" && ! grep -q "ssl._create_unverified_context()" "$SCRIPTS_DIR/jules_api.py"; then
+    log_pass "jules_api.py enforces strict TLS verification"
+else
+    log_fail "jules_api.py missing strict TLS verification"
+fi
+
+if grep -q "\.github/workflows" "$SCRIPTS_DIR/worktree_gate.sh"; then
+    log_pass "worktree_gate.sh implements protected path gating"
+else
+    log_fail "worktree_gate.sh missing protected path gating"
+fi
+
 # Cleanup
 export PATH="$OLD_PATH"
 rm -rf "$MOCK_DIR" "$TEST_REPO" "$LOG_DIR"
+
 
 echo ""
 echo "=========================================================="

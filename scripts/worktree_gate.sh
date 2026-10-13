@@ -52,17 +52,45 @@ fi
 echo "Patch summary:"
 git apply --stat "$PATCH_FILE" 2>/dev/null || head -n 20 "$PATCH_FILE"
 
-# 2. Checkout isolated branch
-echo "==> Creating review branch: $REVIEW_BRANCH from $BASE_BRANCH..."
-git checkout -B "$REVIEW_BRANCH" "$BASE_BRANCH"
+# Save the original directory right at the start to ensure safe cleanup traps
+ORIGINAL_DIR="$PWD"
 
-# 3. Apply patch
-echo "==> Applying patch..."
-if ! git apply "$PATCH_FILE" 2>/dev/null; then
-    echo "❌ Patch did not apply cleanly to $REVIEW_BRANCH"
-    git checkout -f "$BASE_BRANCH"
+# 2. Set up true isolated git worktree
+WORKTREE_DIR=$(mktemp -d "/tmp/jules-worktree-${SESSION_ID}-XXXXXX")
+echo "==> Creating isolated worktree at $WORKTREE_DIR..."
+
+cleanup() {
+    echo "==> Cleaning up isolated worktree..."
+    cd "$ORIGINAL_DIR" 2>/dev/null || true
+    git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || true
     git branch -D "$REVIEW_BRANCH" 2>/dev/null || true
+    rm -rf "$WORKTREE_DIR"
     rm -rf "$PATCH_FILE"
+}
+
+# Trap signals for safe cleanup on interruption
+trap 'cleanup' EXIT INT TERM
+
+# Ensure branch does not already exist locally
+git branch -D "$REVIEW_BRANCH" 2>/dev/null || true
+
+# Add the worktree
+git worktree add -b "$REVIEW_BRANCH" "$WORKTREE_DIR" "$BASE_BRANCH"
+
+# Change directory to the isolated worktree
+cd "$WORKTREE_DIR"
+
+# 3. Protected Path Gating
+echo "==> Inspecting patch for protected path modifications..."
+if git apply --numstat "$ORIGINAL_DIR/$PATCH_FILE" | awk '{print $3}' | grep -E '^\.github/workflows/|^\.circleci/|^\.env(\..*)?$' >/dev/null; then
+    echo "❌ SECURITY VIOLATION: Patch attempts to modify protected infrastructure or secret files."
+    exit 6
+fi
+
+# 4. Apply patch
+echo "==> Applying patch..."
+if ! git apply "$ORIGINAL_DIR/$PATCH_FILE" 2>/dev/null; then
+    echo "❌ Patch did not apply cleanly to $REVIEW_BRANCH"
     exit 2
 fi
 
@@ -105,13 +133,20 @@ if [[ -n "$TEST_CMD" ]]; then
         echo "❌ Tests failed on branch $REVIEW_BRANCH. Reverting changes."
         echo "--- [Test Failure Diagnostics] ---"
         grep -E "^(FAILED|ERROR|=== FAIL|FAIL:) " "$TEST_LOG" | head -n 15 || true
-        echo "--- [Test Failure Summary (Last 40 lines)] ---"
+        
+        # Secret Redaction Filter: Update the actual file so reply gets safe contents
+        # -z flag allows matching across multiple lines (useful for private keys)
+        sed -i -z -E -e 's/AKIA[0-9A-Z]{16}/[REDACTED AWS KEY]/g' \
+                 -e 's/gh[pousr]_[0-9A-Za-z]{36}/[REDACTED GITHUB TOKEN]/g' \
+                 -e 's/Bearer [a-zA-Z0-9\-\._~+=\/]+/[REDACTED BEARER TOKEN]/g' \
+                 -e 's/-----BEGIN [A-Z ]+ PRIVATE KEY-----[^-]+-----END [A-Z ]+ PRIVATE KEY-----/[REDACTED PRIVATE KEY]/g' \
+                 "$TEST_LOG"
+                 
+        echo "--- [Test Failure Summary (Last 40 lines, redacted)] ---"
         tail -n 40 "$TEST_LOG"
+        
         echo "💡 Tip: Run \"jules-gate reply $SESSION_ID $TEST_LOG\" to copy the failure trace and open the Cloud VM for zero-overhead in-VM repair."
         # Not removing $TEST_LOG here because we suggest using it in the reply command
-        git checkout -f "$BASE_BRANCH"
-        git branch -D "$REVIEW_BRANCH" 2>/dev/null || true
-        rm -rf "$PATCH_FILE"
         exit 3
     fi
 else
@@ -132,6 +167,14 @@ REPO_NAME=$(git config --get remote.origin.url 2>/dev/null || basename "$(pwd)")
 echo "$TIMESTAMP|$SESSION_ID|$REPO_NAME|verified|$LINES_ADDED|$LINES_REMOVED|$ESTIMATED_TOKENS" >> "$TELEMETRY_DIR/telemetry.log" 2>/dev/null || true
 
 git commit -m "jules($SESSION_ID): verified changes applied from remote session" || true
+
+# Change back to original directory before cleanup
+cd "$ORIGINAL_DIR"
+
+# Remove trap and clean up worktree but keep the branch
+trap - EXIT INT TERM
+git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || true
+rm -rf "$WORKTREE_DIR"
 rm -rf "$PATCH_FILE"
 
 echo "=========================================================="
