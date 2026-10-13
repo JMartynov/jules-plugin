@@ -1,12 +1,12 @@
-# Jules Task Controller v3.3.0 Implementation Details
+# Jules Task Controller v3.4.0 Implementation Details
 
-This document comprehensively outlines the architectural changes, features, and optimizations introduced up to **Version 3.3.0** of the Jules Task Controller.
+This document comprehensively outlines the architectural changes, features, and optimizations introduced up to **Version 3.4.0** of the Jules Task Controller.
 
 ---
 
 ## 1. 4-Stage Lifecycle Token Insulation (>99.5% Token Savings)
 
-The v3.3.0 architecture evolves the system into an enterprise **4-stage multi-tier orchestration system** that dynamically routes tasks to the most efficient model, sparing over 99.5% of main-thread tokens.
+The v3.4.0 architecture evolves the system into an enterprise **4-stage multi-tier orchestration system** that dynamically routes tasks to the most efficient model, sparing over 99.5% of main-thread tokens.
 
 **Token Comparison Matrix:**
 | Architecture Approach | Token Cost | Notes |
@@ -20,7 +20,7 @@ The v3.3.0 architecture evolves the system into an enterprise **4-stage multi-ti
 | Interactive Resolution (v3.0.0) | <8,000 tokens | Autonomous question resolution, strict completion guardrails, in-VM interaction. |
 | Auto-Answer Heuristics (v3.1.0) | <7,500 tokens | Boilerplate follow-up regex heuristics, --interactive watcher flag, auto-conclusion. |
 | Worktree Hardening (v3.2.0) | <7,000 tokens | True ephemeral /tmp/ worktrees, zero data-loss guarantee, protected path gating. |
-| Sandbox & Flaky Retry (v3.3.0) | <6,500 tokens | Containerized test runner (--sandbox), multi-pass flaky test retry (--retry-flaky). |
+| Sandbox & Flaky Retry (v3.4.0) | <6,500 tokens | Containerized test runner (--sandbox), multi-pass flaky test retry (--retry-flaky). |
 
 ### Dynamic Efficiency Threshold (Local Execution Override)
 The core philosophy is to maximize delegation to Jules to offload heavy code generation, refactoring, and test synthesis. However, if delegating a task introduces disproportionate orchestration overhead (such as 1-line syntax/import fixes, single version bumps, or quick path adjustments) where cloud VM dispatch and sub-agent coordination consume MORE tokens than a direct local edit, the orchestrator overrides delegation and executes locally on the IDE thread.
@@ -294,9 +294,9 @@ Version 3.2.0 elevates `jules-gate` to enterprise production standards based on 
 
 ---
 
-## 9. Containerized Test Sandbox & Flaky Test Multi-Pass Retry (v3.3.0)
+## 9. Containerized Test Sandbox & Flaky Test Multi-Pass Retry (v3.4.0)
 
-Version 3.3.0 introduces advanced isolation and testing resilience:
+Version 3.4.0 introduces advanced isolation and testing resilience:
 - **Containerized Test Sandbox (`--sandbox`):**
   - Executes test suites in isolated Docker / Podman containers mounting the worktree (`-v $(pwd):/workspace -w /workspace`) with network disabled (`--network none`).
   - Auto-detects container base images: `python:3.11-slim`, `node:lts-slim`, `rust:slim`, `golang:alpine`.
@@ -307,9 +307,9 @@ Version 3.3.0 introduces advanced isolation and testing resilience:
 
 ---
 
-## Architecture and Command Table (v3.3.0)
+## Architecture and Command Table (v3.4.0)
 
-| Component | Location | Responsibility / Capabilities in v3.3.0 |
+| Component | Location | Responsibility / Capabilities in v3.4.0 |
 | :--- | :--- | :--- |
 | **`jules-gate` CLI** | `bin/jules-gate` | Unified CLI supporting `wait [--interactive]`, `verify [--sandbox] [--retry-flaky]`, `merge`, `pr`, `inspect`, `interact`, `auto-answer`, `tokens`, `lint`. |
 | **AIDA API Engine** | `scripts/jules_api.py` | Strict TLS, exponential backoff with jitter, auto-answer regex heuristics, live question extraction, and in-VM feedback. |

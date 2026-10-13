@@ -1,6 +1,6 @@
-# Google Jules (EULIS) Task Controller Plugin (Version 3.3.0)
+# Google Jules (EULIS) Task Controller Plugin (Version 3.4.0)
 
-[![Version](https://img.shields.io/badge/version-3.3.0-blue.svg)](plugin.json)
+[![Version](https://img.shields.io/badge/version-3.4.0-blue.svg)](plugin.json)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](README.md)
 [![Status](https://img.shields.io/badge/status-active-success.svg)](https://github.com/JMartynov/jules-plugin)
 
@@ -21,7 +21,7 @@ An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Design
 
 ---
 
-## 🌟 What's New in Version 3.3.0
+## 🌟 What's New in Version 3.4.0
 
 * **Containerized Test Sandbox (`--sandbox`):** Run test runners inside isolated Docker/Podman containers (`--network none`) mounting ephemeral worktrees, guaranteeing zero host vulnerability when testing untrusted AI patches.
 * **Flaky Test Multi-Pass Retry (`--retry-flaky <N>`):** Automatically retry failing test suites up to $N$ times to differentiate transient environment flakes from true code regressions before gating review branches.
@@ -157,10 +157,10 @@ The universal orchestrator CLI is installed in your system PATH at `/Users/ivan/
 jules-plugin/
 ├── .gitignore                               # Clean git tracking (ignores .jules/, *.patch)
 ├── LICENSE                                  # Apache License 2.0
-├── README.md                                # Comprehensive guide & architecture (v3.3.0)
+├── README.md                                # Comprehensive guide & architecture (v3.4.0)
 ├── RUNBOOK.md                               # In-Depth Operational Runbook & Playbooks
 ├── install.sh                               # Global installer script
-├── plugin.json                              # Manifest (v3.3.0)
+├── plugin.json                              # Manifest (v3.4.0)
 ├── bin/
 │   └── jules-gate                           # Portable, self-contained orchestrator CLI
 ├── docs/                                    # System architecture, reviews, spikes & reports
@@ -194,3 +194,25 @@ All generated outputs across the development lifecycle are version-controlled in
 
 ## 📄 License
 [Apache License 2.0](LICENSE)
+
+## Multi-IDE Setup: Claude Desktop & Claude Code
+
+The Jules Task Controller (v3.4.0) offers first-class Multi-IDE support via a lightweight Zero-Dependency MCP Server.
+
+### Installation
+
+Use the updated installer to set up integrations for Claude Desktop and Claude Code:
+
+```bash
+# Install everything (Antigravity, Claude Desktop, and Claude Code)
+./install.sh --all
+
+# Or, target specifically:
+./install.sh --claude-desktop
+./install.sh --claude-code
+```
+
+### Configuration Details
+
+- **Claude Desktop:** The installer automatically injects the `jules-gate` MCP server into `~/Library/Application Support/Claude/claude_desktop_config.json`. This provides Claude with tools such as `jules_dispatch`, `jules_wait`, `jules_verify`, `jules_merge`, and interactive resolution utilities.
+- **Claude Code:** The EULIS Delegation-First instructions are deployed to `~/.claude/CLAUDE.md`, automatically enabling native orchestration workflows.

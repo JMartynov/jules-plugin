@@ -1,6 +1,6 @@
 # Jules Task Controller: Operational Runbook
 
-**Version:** 3.3.0  
+**Version:** 3.4.0  
 **Target Audience:** Software Engineers, DevOps, Autonomous AI Agents (Antigravity / Gemini IDE, Claude Code, Cursor, JetBrains, VS Code)  
 **System Repository:** [`https://github.com/JMartynov/jules-plugin`](https://github.com/JMartynov/jules-plugin)
 
@@ -535,7 +535,7 @@ Google Jules uses asynchronous Cloud VMs that transition through distinct states
 
 ---
 
-## 15. Autonomous Multi-Tier Interactive Task Resolution & Auto-Answer Heuristics (v3.3.0)
+## 15. Autonomous Multi-Tier Interactive Task Resolution & Auto-Answer Heuristics (v3.4.0)
 
 ### 1. Operational Invariant: No Merging in Interactive State
 * **State Check:** When `jules-gate wait` encounters a task in `Awaiting User Feedback`, it emits a prominent warning and **exits with code 10**.
@@ -576,3 +576,21 @@ jules-gate interact <session_id> .jules/clarifications/task11_answer.txt
    The Main Calling Agent prompts the user via `ask_question`. Upon answer, the response flows down: User ➔ Main Agent ➔ Sub-Agent ➔ `jules-gate interact` ➔ Jules Cloud VM.
 
 
+
+## Multi-IDE Setup: Claude Desktop & Claude Code
+
+Version 3.4.0 introduces the Zero-Dependency Model Context Protocol (MCP) server, allowing Claude Desktop and Claude Code to utilize the `jules-gate` orchestration layer.
+
+### Setup Instructions
+
+To deploy the Multi-IDE integrations, run the provided global installer:
+
+```bash
+# Add jules-gate to Claude Desktop config and install Claude Code instructions:
+./install.sh --claude-desktop --claude-code
+
+# Alternatively, install all integrations:
+./install.sh --all
+```
+
+The MCP Server (`scripts/jules_mcp.py`) operates via standard stdio, handling JSON-RPC 2.0 messages for zero-dependency local coordination.
