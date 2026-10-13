@@ -2,11 +2,11 @@
 name: jules-task-controller
 description: >-
   Orchestrate Google Jules (EULIS) coding tasks with mandatory sub-agent execution, automated task splitting,
-  multi-modal delegation, zero-token polling, auto-answer heuristics, 3-tier interactive task resolution, and gated verification (Version 3.1.0).
+  multi-modal delegation, zero-token polling, auto-answer heuristics, 3-tier interactive task resolution, containerized sandboxing, and gated verification (Version 3.3.0).
   Use whenever planning, splitting, delegating, or verifying tasks assigned to Jules / EULIS across any programming language.
 ---
 
-# Jules Task Controller (Version 3.1.0)
+# Jules Task Controller (Version 3.3.0)
 
 An enterprise orchestrator for **Google Jules (EULIS)**. Designed to maximize delegation across all software engineering workflows while strictly enforcing **sub-agent isolation** to eliminate token bloat (empirically proven to save **>99.5% of main-thread tokens** through Dynamic Multi-Tier Model Routing).
 
@@ -401,7 +401,7 @@ sequenceDiagram
     Note over Sub: jules-gate verify & jules-gate merge unlocked!
 ```
 
-### Core Invariants of Version 3.1.0:
+### Core Invariants of Version 3.3.0:
 1. **Auto-Answer Heuristics (`jules-gate wait --interactive` / `jules-gate auto-answer`):**  
    Common conversational sign-offs (e.g., *"Should I open a PR or adjust anything?"*, *"Would you like me to make any other changes?"*) are automatically recognized. A standard non-interactive conclusion response is dispatched directly to the Cloud VM without human escalation, allowing Jules to transition to `Completed` autonomously.
 2. **Strict No-Merge Guardrail:**  

@@ -1,6 +1,6 @@
 # Jules Task Controller: Operational Runbook
 
-**Version:** 3.1.0  
+**Version:** 3.3.0  
 **Target Audience:** Software Engineers, DevOps, Autonomous AI Agents (Antigravity / Gemini IDE, Claude Code, Cursor, JetBrains, VS Code)  
 **System Repository:** [`https://github.com/JMartynov/jules-plugin`](https://github.com/JMartynov/jules-plugin)
 

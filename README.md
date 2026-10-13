@@ -1,6 +1,6 @@
-# Google Jules (EULIS) Task Controller Plugin (Version 3.0.0)
+# Google Jules (EULIS) Task Controller Plugin (Version 3.3.0)
 
-[![Version](https://img.shields.io/badge/version-3.2.0-blue.svg)](plugin.json)
+[![Version](https://img.shields.io/badge/version-3.3.0-blue.svg)](plugin.json)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](README.md)
 [![Status](https://img.shields.io/badge/status-active-success.svg)](https://github.com/JMartynov/jules-plugin)
 
@@ -21,13 +21,14 @@ An enterprise, token-efficient orchestrator for **Google Jules (EULIS)**. Design
 
 ---
 
-## 🌟 What's New in Version 3.0.0
+## 🌟 What's New in Version 3.3.0
 
-* **Autonomous Multi-Tier Interactive Task Resolution:** When Jules pauses in an interactive state (`Awaiting User Feedback`), the system retrieves the question via `jules-gate inspect` and sends feedback directly into the running Cloud VM via `jules-gate interact` through the Google AIDA REST API.
-* **Strict Completion & Merge Guardrails:** Tasks in interactive state are **never** considered completed and review branches are strictly prevented from merging (`jules-gate wait` exits with code 10, `jules-gate merge` aborts with exit code 5).
-* **3-Tier Escalation Hierarchy:** Sub-agents first attempt autonomous clarification based on the task contract; if underspecified, they escalate to the Main Calling Agent, which prompts the user via `ask_question`.
-* **Universal Cloud VM API Engine (`scripts/jules_api.py`):** Real-time integration with Google AIDA API for activity streaming, question extraction, and user interaction.
-* **Cloud VM Rapid Reply & Web Session Closing:** `jules-gate close` and `jules-gate reply` for instant browser launch and clipboard trace synchronization.
+* **Containerized Test Sandbox (`--sandbox`):** Run test runners inside isolated Docker/Podman containers (`--network none`) mounting ephemeral worktrees, guaranteeing zero host vulnerability when testing untrusted AI patches.
+* **Flaky Test Multi-Pass Retry (`--retry-flaky <N>`):** Automatically retry failing test suites up to $N$ times to differentiate transient environment flakes from true code regressions before gating review branches.
+* **True Ephemeral Git Worktree Isolation & Zero Data Loss:** Ephemeral worktrees in `/tmp/jules-worktree-*` with complete eradication of destructive `git checkout -f` operations, protecting developer uncommitted work.
+* **Protected Path Gating:** Strict validation blocking patches from modifying `.github/workflows/`, `.circleci/`, or `.env*` with exit code 6 (`SECURITY VIOLATION`).
+* **Auto-Answer Heuristics (`--interactive`):** Automatically recognizes boilerplate sign-off prompts (*"Should I open a PR or adjust anything?"*) and replies with deterministic completion directives without human escalation.
+* **Autonomous 3-Tier Interactive Resolution:** Live question inspection (`jules-gate inspect`) and direct in-VM feedback (`jules-gate interact`) via the Google AIDA REST API.
 
 ---
 

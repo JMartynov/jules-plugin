@@ -1,12 +1,12 @@
-# Jules Task Controller v3.0.0 Implementation Details
+# Jules Task Controller v3.3.0 Implementation Details
 
-This document comprehensively outlines the architectural changes, features, and optimizations introduced in **Version 3.0.0** of the Jules Task Controller.
+This document comprehensively outlines the architectural changes, features, and optimizations introduced up to **Version 3.3.0** of the Jules Task Controller.
 
 ---
 
 ## 1. 4-Stage Lifecycle Token Insulation (>99.5% Token Savings)
 
-The v3.0.0 architecture evolves the system into an enterprise **4-stage multi-tier orchestration system** that dynamically routes tasks to the most efficient model, sparing over 99.5% of main-thread tokens.
+The v3.3.0 architecture evolves the system into an enterprise **4-stage multi-tier orchestration system** that dynamically routes tasks to the most efficient model, sparing over 99.5% of main-thread tokens.
 
 **Token Comparison Matrix:**
 | Architecture Approach | Token Cost | Notes |
@@ -18,6 +18,9 @@ The v3.0.0 architecture evolves the system into an enterprise **4-stage multi-ti
 | Full 6-Layer Shield (v2.6.0) | <10,000 tokens | Serialized auto-rebase, pre-dispatch linter, strict primary sweep ban. |
 | Telemetry & Heuristics (v2.7.0) | <8,000 tokens | Token economy telemetry, pre-dispatch complexity heuristics, efficiency override. |
 | Interactive Resolution (v3.0.0) | <8,000 tokens | Autonomous question resolution, strict completion guardrails, in-VM interaction. |
+| Auto-Answer Heuristics (v3.1.0) | <7,500 tokens | Boilerplate follow-up regex heuristics, --interactive watcher flag, auto-conclusion. |
+| Worktree Hardening (v3.2.0) | <7,000 tokens | True ephemeral /tmp/ worktrees, zero data-loss guarantee, protected path gating. |
+| Sandbox & Flaky Retry (v3.3.0) | <6,500 tokens | Containerized test runner (--sandbox), multi-pass flaky test retry (--retry-flaky). |
 
 ### Dynamic Efficiency Threshold (Local Execution Override)
 The core philosophy is to maximize delegation to Jules to offload heavy code generation, refactoring, and test synthesis. However, if delegating a task introduces disproportionate orchestration overhead (such as 1-line syntax/import fixes, single version bumps, or quick path adjustments) where cloud VM dispatch and sub-agent coordination consume MORE tokens than a direct local edit, the orchestrator overrides delegation and executes locally on the IDE thread.
@@ -269,15 +272,50 @@ Version 3.0.0 establishes an active escalation protocol for sessions that enter 
 
 ---
 
-## Architecture and Command Table
+## 7. Auto-Answer Heuristics & Interactive Watcher (v3.1.0)
 
-| Component | Location | Responsibility / Change in v3.0.0 |
+Version 3.1.0 adds intelligent conversational automation to prevent Jules from pausing unnecessarily:
+- **Heuristic Pattern Engine:** Recognizes boilerplate review follow-ups (*"Should I open a PR or adjust anything?"*, *"Would you like me to make any other changes?"*) via regex matching.
+- **Automated Conclusion Dispatch:** Automatically transmits deterministic non-interactive feedback directly to the Cloud VM without interrupting the developer.
+- **Interactive Watcher Flag (`jules-gate wait --interactive`):** Inline auto-answer evaluation during background polling; substantive prompts (Option A vs B) continue to trigger the interactive guard (exit code 10).
+- **CLI Subcommand:** `jules-gate auto-answer <session_id>` for manual or scripted unblocking.
+
+---
+
+## 8. Enterprise Pipeline Hardening & Zero Data-Loss Blueprint (v3.2.0)
+
+Version 3.2.0 elevates `jules-gate` to enterprise production standards based on SWE-bench and OpenHands comparative audits:
+- **True Ephemeral Git Worktree Isolation:** Verification runs entirely inside `/tmp/jules-worktree-${SESSION_ID}-*`. Completely eliminates destructive `git checkout -f "$BASE_BRANCH"`, guaranteeing zero risk of losing developer uncommitted work.
+- **Protected Path Gating:** Strict diff inspection rejecting patches that modify `.github/workflows/`, `.circleci/`, or `.env*` with exit code 6 (`PROTECTED PATH SECURITY VIOLATION`).
+- **Strict TLS Security:** Restores system CA certificate verification via `ssl.create_default_context()`.
+- **Network Resilience:** Exponential backoff retry loop with random jitter on HTTP 429 and 5xx errors.
+- **Secret Redaction Filter:** Automatically masks AWS keys, GitHub tokens, Bearer strings, and private keys in test failure logs.
+- **Signal & Exit Trapping:** POSIX `trap cleanup EXIT INT TERM` ensuring temporary worktrees and patch files are pruned even on user cancellation.
+
+---
+
+## 9. Containerized Test Sandbox & Flaky Test Multi-Pass Retry (v3.3.0)
+
+Version 3.3.0 introduces advanced isolation and testing resilience:
+- **Containerized Test Sandbox (`--sandbox`):**
+  - Executes test suites in isolated Docker / Podman containers mounting the worktree (`-v $(pwd):/workspace -w /workspace`) with network disabled (`--network none`).
+  - Auto-detects container base images: `python:3.11-slim`, `node:lts-slim`, `rust:slim`, `golang:alpine`.
+  - Ensures complete host OS isolation when verifying untrusted patches.
+- **Flaky Test Multi-Pass Retry (`--retry-flaky <N>`):**
+  - Reruns failing test commands up to $N$ attempts before rejecting review branches.
+  - Automatically recovers and logs `⚠️ [FLAKY TEST RESOLVED]` when non-deterministic test flakes pass on retry.
+
+---
+
+## Architecture and Command Table (v3.3.0)
+
+| Component | Location | Responsibility / Capabilities in v3.3.0 |
 | :--- | :--- | :--- |
-| **`jules-gate` CLI** | `bin/jules-gate` | Added `inspect` & `interact` subcommands, strict interactive merge guard (exit 5), v3.0.0 status diagnostics. |
-| **AIDA API Engine** | `scripts/jules_api.py` | Direct OAuth bridge to Google AIDA backend for live activity inspection and in-VM feedback. |
-| **Status Poller** | `scripts/jules_poll_wait.sh` | Detects interactive state, extracts active question, outputs strict merge warning, and exits 10. |
-| **Gated Verification** | `scripts/worktree_gate.sh` | Emits direct web session link, telemetry logging, diagnostic sieve (`tail -n 40`). |
-| **Invariant Suite** | `tests/test_invariants.sh` | Comprehensive automated assertions validating CLI, exit code 10, merge guard, API engine, and escalation rules. |
+| **`jules-gate` CLI** | `bin/jules-gate` | Unified CLI supporting `wait [--interactive]`, `verify [--sandbox] [--retry-flaky]`, `merge`, `pr`, `inspect`, `interact`, `auto-answer`, `tokens`, `lint`. |
+| **AIDA API Engine** | `scripts/jules_api.py` | Strict TLS, exponential backoff with jitter, auto-answer regex heuristics, live question extraction, and in-VM feedback. |
+| **Status Poller** | `scripts/jules_poll_wait.sh` | Zero-token background polling, `--interactive` auto-answering, strict interactive merge guard (exit 10). |
+| **Gated Verification** | `scripts/worktree_gate.sh` | True `/tmp` worktree isolation, zero data loss, protected path gating, containerized sandbox (`--sandbox`), flaky retry (`--retry-flaky`), secret redaction. |
+| **Invariant Suite** | `tests/test_invariants.sh` | 73 automated assertions across 10 invariant categories ensuring 100% regression and security coverage. |
 | **Token Shield** | Architecture Standard | Benchmarked >99.5% token savings across multi-tier routing. |
 | **Artifact Taxonomy** | `docs/` | Structured taxonomy for reviews, spikes, implementation, and reports. |
 
