@@ -46,6 +46,14 @@ def evaluate_auto_answer(question):
 
 AIDA_BASE_URL = os.environ.get("JULES_API_BASE_URL", "https://aida.googleapis.com/v1/swebot")
 
+def get_ssl_context():
+    """Create strict TLS context with certifi fallback for macOS compatibility."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except (ImportError, Exception):
+        return ssl.create_default_context()
+
 def get_oauth_token():
     """Retrieve Google OAuth access token for Jules."""
     # 1. Environment variable override
@@ -84,7 +92,7 @@ def make_request(path, method="GET", payload=None):
     if not token:
         raise RuntimeError("No Jules OAuth token found in environment, keychain, or auth cache.")
 
-    ctx = ssl.create_default_context()
+    ctx = get_ssl_context()
     url = f"{AIDA_BASE_URL}/{path.lstrip('/')}"
     headers = {
         "Authorization": f"Bearer {token}",
@@ -124,9 +132,10 @@ def make_request(path, method="GET", payload=None):
 
 def inspect_session(session_id):
     """Inspect session activity stream and return interactive question if present."""
-    path = f"tasks/{session_id}/activities"
+    path = f"tasks/{session_id}"
     res = make_request(path, method="GET")
-    steps = res.get("activitySteps", [])
+    task = res.get("task", res)
+    steps = task.get("activitySteps", [])
 
     is_interactive = False
     latest_question = ""

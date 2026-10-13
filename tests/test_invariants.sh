@@ -540,6 +540,47 @@ else
     log_fail "jules-gate auto-answer missing usage validation"
 fi
 
+# REGRESSION TEST: AIDA Task Activity Inspection & TLS Context
+AIDA_INSPECT_REGRESSION=$(cd "$PLUGIN_ROOT" && python3 -c "
+import unittest.mock as mock
+from scripts.jules_api import inspect_session, get_ssl_context
+
+# 1. Verify get_ssl_context returns an SSLContext
+ctx = get_ssl_context()
+assert ctx is not None, 'get_ssl_context must return valid SSLContext'
+
+# 2. Verify inspect_session uses 'tasks/{id}' path and extracts task.activitySteps correctly
+mock_resp = {
+    'task': {
+        'activitySteps': [
+            {
+                'id': 'step-1',
+                'agentActivity': {
+                    'agentMessaged': {
+                        'text': 'Should I open a PR or adjust anything?',
+                        'requiresUserResponse': True
+                    }
+                }
+            }
+        ]
+    }
+}
+with mock.patch('scripts.jules_api.make_request', return_value=mock_resp) as mock_req:
+    res = inspect_session('test-session-123')
+    mock_req.assert_called_once_with('tasks/test-session-123', method='GET')
+    assert res['is_interactive'] is True, 'Session should be identified as interactive'
+    assert res['auto_answerable'] is True, 'Boilerplate question should be auto_answerable'
+    assert res['step_id'] == 'step-1'
+
+print('OK')
+" 2>&1 || true)
+
+if echo "$AIDA_INSPECT_REGRESSION" | grep -q "OK"; then
+    log_pass "scripts/jules_api.py correctly inspects tasks/{id} and handles TLS context (regression test)"
+else
+    log_fail "scripts/jules_api.py regression test failed: $AIDA_INSPECT_REGRESSION"
+fi
+
 # ------------------------------------------------------------
 # INVARIANT 8: Auto-Answer Heuristics & Interactive Watcher
 # ------------------------------------------------------------

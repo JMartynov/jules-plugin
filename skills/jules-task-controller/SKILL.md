@@ -412,6 +412,8 @@ sequenceDiagram
    Sub-agents escalate substantive questions to the Main Calling Agent via `send_message`, which can prompt the human user via `ask_question` when necessary.
 5. **Direct Cloud VM Interaction (`jules-gate interact`):**  
    Sends answers directly into the running Cloud VM via the Google AIDA REST API, resuming execution with zero local token generation.
+6. **Strict Prohibition on Manual Gate Bypasses:**  
+   Sub-agents must NEVER bypass the verification gate with manual `jules remote pull --apply` or local branch merges when encountering timeouts (code 1) or interactive states (code 10). Any blocked session MUST be escalated via `send_message`.
 
 
 
