@@ -14,6 +14,8 @@ import urllib.request
 import urllib.error
 import ssl
 import re
+import time
+import random
 
 COMMON_BOILERPLATE_PATTERNS = [
     r"should i (?:open|create|file|submit) a (?:pr|pull request)",
@@ -77,12 +79,12 @@ def get_oauth_token():
     return None
 
 def make_request(path, method="GET", payload=None):
-    """Execute authenticated HTTPS request against Google Jules AIDA backend."""
+    """Execute authenticated HTTPS request against Google Jules AIDA backend with retry and jitter."""
     token = get_oauth_token()
     if not token:
         raise RuntimeError("No Jules OAuth token found in environment, keychain, or auth cache.")
 
-    ctx = ssl._create_unverified_context()
+    ctx = ssl.create_default_context()
     url = f"{AIDA_BASE_URL}/{path.lstrip('/')}"
     headers = {
         "Authorization": f"Bearer {token}",
@@ -91,9 +93,34 @@ def make_request(path, method="GET", payload=None):
 
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    with urllib.request.urlopen(req, context=ctx) as resp:
-        content = resp.read().decode("utf-8")
-        return json.loads(content) if content else {}
+    
+    max_retries = 3
+    base_delay = 1.0
+    max_delay = 10.0
+    
+    for attempt in range(max_retries + 1):
+        try:
+            with urllib.request.urlopen(req, context=ctx) as resp:
+                content = resp.read().decode("utf-8")
+                return json.loads(content) if content else {}
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 500, 502, 503, 504) and attempt < max_retries:
+                delay = min(max_delay, base_delay * (2 ** attempt))
+                jitter = random.uniform(0, 0.1 * delay)
+                sleep_time = delay + jitter
+                print(f"HTTP {e.code} encountered. Retrying in {sleep_time:.2f} seconds... (Attempt {attempt + 1}/{max_retries})", file=sys.stderr)
+                time.sleep(sleep_time)
+            else:
+                raise
+        except Exception as e:
+            if attempt < max_retries:
+                delay = min(max_delay, base_delay * (2 ** attempt))
+                jitter = random.uniform(0, 0.1 * delay)
+                sleep_time = delay + jitter
+                print(f"Network error encountered: {e}. Retrying in {sleep_time:.2f} seconds... (Attempt {attempt + 1}/{max_retries})", file=sys.stderr)
+                time.sleep(sleep_time)
+            else:
+                raise
 
 def inspect_session(session_id):
     """Inspect session activity stream and return interactive question if present."""
