@@ -1,7 +1,7 @@
 {
   "name": "jules-plugin",
-  "version": "3.2.0",
-  "description": "Enterprise Google Jules (EULIS) orchestrator v3.2.0 featuring Auto-Answer Heuristics for boilerplate follow-ups, Interactive Watcher Flag (jules-gate wait --interactive), Autonomous Multi-Tier Interactive Task Resolution (jules-gate inspect & interact), Strict No-Merge Interactive State Guardrails, Dynamic Multi-Tier Model Routing sparing >99.5% tokens, and 4-stage lifecycle insulation.",
+  "version": "3.3.0",
+  "description": "Enterprise Google Jules (EULIS) orchestrator v3.3.0 featuring Containerized Test Sandbox (--sandbox), Flaky Test Multi-Pass Retry (--retry-flaky), Auto-Answer Heuristics for boilerplate follow-ups, Interactive Watcher Flag (jules-gate wait --interactive), Autonomous Multi-Tier Interactive Task Resolution (jules-gate inspect & interact), Strict No-Merge Interactive State Guardrails, Dynamic Multi-Tier Model Routing sparing >99.5% tokens, and 4-stage lifecycle insulation.",
   "author": {
     "name": "Ivan"
   }

@@ -28,9 +28,9 @@ Usage: jules-gate <command> [arguments...]
 
 Commands:
   wait <session_id...> [--timeout MINS] [--interactive|-i]  Poll and wait for Jules session(s). With --interactive, auto-answers boilerplate prompts.
-  verify <session_id> [base_branch]      Pull patch, checkout isolated review branch, run tests, and gate.
-  merge <session_id> [base] [--no-rebase] [--delete-remote] Verify, auto-rebase, and merge review branch.
-  pr <session_id> [base_branch]          Verify and push review branch, opening a verified GitHub PR via `gh`.
+  verify <session_id> [base_branch] [--sandbox] [--retry-flaky <N>]  Pull patch, checkout isolated review branch, run tests, and gate.
+  merge <session_id> [base] [--no-rebase] [--delete-remote] [--sandbox] [--retry-flaky <N>] Verify, auto-rebase, and merge review branch.
+  pr <session_id> [base_branch] [--sandbox] [--retry-flaky <N>] Verify and push review branch, opening a verified GitHub PR via `gh`.
   lint <repo> [prompt_file]              Pre-flight contract linter to validate repo connection and prompt spec.
   tokens [--json] [--reset]              Display cumulative estimated tokens spared across sessions.
   inspect <session_id> [--json]          Inspect activity stream & extract interactive question from Jules.
@@ -58,7 +58,31 @@ case "$CMD" in
         exec "$SCRIPTS_DIR/jules_poll_wait.sh" "$@"
         ;;
     verify)
-        exec "$SCRIPTS_DIR/worktree_gate.sh" "$@"
+        SESSION_ID="$1"
+        shift
+        BASE_BRANCH=""
+        WORKTREE_ARGS=""
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --sandbox)
+                    WORKTREE_ARGS="$WORKTREE_ARGS --sandbox"
+                    shift
+                    ;;
+                --retry-flaky)
+                    WORKTREE_ARGS="$WORKTREE_ARGS --retry-flaky $2"
+                    shift 2
+                    ;;
+                *)
+                    if [[ -z "$BASE_BRANCH" ]]; then
+                        BASE_BRANCH="$1"
+                    else
+                        WORKTREE_ARGS="$WORKTREE_ARGS $1"
+                    fi
+                    shift
+                    ;;
+            esac
+        done
+        eval "exec \"$SCRIPTS_DIR/worktree_gate.sh\" \"$SESSION_ID\" \"$BASE_BRANCH\" $WORKTREE_ARGS"
         ;;
     merge)
         SESSION_ID="$1"
@@ -66,6 +90,7 @@ case "$CMD" in
         BASE_BRANCH=""
         DELETE_REMOTE=false
         AUTO_REBASE=true
+        WORKTREE_ARGS=""
         while [[ $# -gt 0 ]]; do
             case "$1" in
                 --delete-remote)
@@ -76,8 +101,20 @@ case "$CMD" in
                     AUTO_REBASE=false
                     shift
                     ;;
+                --sandbox)
+                    WORKTREE_ARGS="$WORKTREE_ARGS --sandbox"
+                    shift
+                    ;;
+                --retry-flaky)
+                    WORKTREE_ARGS="$WORKTREE_ARGS --retry-flaky $2"
+                    shift 2
+                    ;;
                 *)
-                    BASE_BRANCH="$1"
+                    if [[ -z "$BASE_BRANCH" ]]; then
+                        BASE_BRANCH="$1"
+                    else
+                        WORKTREE_ARGS="$WORKTREE_ARGS $1"
+                    fi
                     shift
                     ;;
             esac
@@ -104,7 +141,9 @@ case "$CMD" in
             fi
         fi
 
-        "$SCRIPTS_DIR/worktree_gate.sh" "$SESSION_ID" "$BASE_BRANCH"
+        # Pass extra WORKTREE_ARGS which may contain --sandbox, --retry-flaky, etc.
+        # eval is used carefully to correctly expand arguments like --retry-flaky 2
+        eval "\"$SCRIPTS_DIR/worktree_gate.sh\" \"$SESSION_ID\" \"$BASE_BRANCH\" $WORKTREE_ARGS"
         
         if [[ "$AUTO_REBASE" == "true" ]]; then
             MERGE_BASE=$(git merge-base "$REVIEW_BRANCH" "$BASE_BRANCH" 2>/dev/null || true)
@@ -135,7 +174,31 @@ case "$CMD" in
         ;;
     pr)
         SESSION_ID="$1"
-        BASE_BRANCH="${2:-$(git branch --show-current 2>/dev/null || echo 'main')}"
+        shift
+        BASE_BRANCH=""
+        WORKTREE_ARGS=""
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --sandbox)
+                    WORKTREE_ARGS="$WORKTREE_ARGS --sandbox"
+                    shift
+                    ;;
+                --retry-flaky)
+                    WORKTREE_ARGS="$WORKTREE_ARGS --retry-flaky $2"
+                    shift 2
+                    ;;
+                *)
+                    if [[ -z "$BASE_BRANCH" ]]; then
+                        BASE_BRANCH="$1"
+                    else
+                        WORKTREE_ARGS="$WORKTREE_ARGS $1"
+                    fi
+                    shift
+                    ;;
+            esac
+        done
+
+        BASE_BRANCH="${BASE_BRANCH:-$(git branch --show-current 2>/dev/null || echo 'main')}"
         if ! git rev-parse --verify "$BASE_BRANCH" >/dev/null 2>&1; then
             if [[ "$BASE_BRANCH" == "main" ]] && git rev-parse --verify "master" >/dev/null 2>&1; then
                 BASE_BRANCH="master"
@@ -145,7 +208,7 @@ case "$CMD" in
         fi
         REVIEW_BRANCH="jules/review-${SESSION_ID}"
         
-        "$SCRIPTS_DIR/worktree_gate.sh" "$SESSION_ID" "$BASE_BRANCH"
+        eval "\"$SCRIPTS_DIR/worktree_gate.sh\" \"$SESSION_ID\" \"$BASE_BRANCH\" $WORKTREE_ARGS"
 
         # Calculate session diff and spared tokens for PR badge
         NUMSTAT=$(git diff --numstat "$BASE_BRANCH...$REVIEW_BRANCH" 2>/dev/null || echo "0 0")

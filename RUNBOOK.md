@@ -481,11 +481,13 @@ When running parallel waves of Jules tasks (e.g. Tasks 1, 2, 3), merging them se
 
 `jules-gate merge` automatically performs serialized rebasing:
 ```bash
-jules-gate merge <session_id> [base_branch] [--no-rebase] [--delete-remote]
+jules-gate merge <session_id> [base_branch] [--no-rebase] [--delete-remote] [--sandbox] [--retry-flaky <N>]
 ```
 * **Auto-Detection:** Automatically compares `git merge-base` between `jules/review-<id>` and `base_branch`. If `base_branch` has advanced, it rebases the review branch onto `base_branch`.
 * **Conflict Prevention:** If a semantic or textual conflict occurs during rebase, it safely aborts (`git rebase --abort`) and alerts with exit code 4, preventing corrupt merges.
 * **Automated Cleanup:** With `--delete-remote`, it automatically deletes the tracking branch on origin once merged cleanly.
+* **Containerized Test Sandbox:** With `--sandbox`, it automatically detects the project framework and runs local verification inside an ephemeral, network-isolated container (Docker/Podman) such as `python:3.11-slim`, `node:lts-slim`, etc. If no container engine is found, it falls back to host execution.
+* **Flaky Test Multi-Pass Retry:** With `--retry-flaky <N>`, if a test execution fails, it retries the test command up to `<N>` attempts. If it passes on a retry, verification succeeds and proceeds to commit/merge.
 
 ---
 
@@ -533,7 +535,7 @@ Google Jules uses asynchronous Cloud VMs that transition through distinct states
 
 ---
 
-## 15. Autonomous Multi-Tier Interactive Task Resolution & Auto-Answer Heuristics (v3.2.0)
+## 15. Autonomous Multi-Tier Interactive Task Resolution & Auto-Answer Heuristics (v3.3.0)
 
 ### 1. Operational Invariant: No Merging in Interactive State
 * **State Check:** When `jules-gate wait` encounters a task in `Awaiting User Feedback`, it emits a prominent warning and **exits with code 10**.

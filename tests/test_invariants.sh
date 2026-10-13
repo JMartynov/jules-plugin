@@ -61,8 +61,8 @@ done
 
 STATUS_OUT=$("$GATE_BIN" status 2>&1 || true)
 EXPECTED_VER=$(grep '"version"' "$PLUGIN_ROOT/plugin.json" | head -n 1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
-if [[ "$EXPECTED_VER" != "3.2.0" ]]; then
-    log_fail "Expected version 3.2.0 in plugin.json, got $EXPECTED_VER"
+if [[ "$EXPECTED_VER" != "3.3.0" ]]; then
+    log_fail "Expected version 3.3.0 in plugin.json, got $EXPECTED_VER"
 fi
 if echo "$STATUS_OUT" | grep -q "$EXPECTED_VER"; then
     log_pass "jules-gate status outputs plugin version ($EXPECTED_VER)"
@@ -571,10 +571,10 @@ else
 fi
 
 # ------------------------------------------------------------
-# INVARIANT 9: Hardening & Safety Blueprint (v3.2.0)
+# INVARIANT 9: Hardening & Safety Blueprint (v3.3.0)
 # ------------------------------------------------------------
 echo ""
-echo "--- [Invariant 9: Hardening & Safety Blueprint (v3.2.0)] ---"
+echo "--- [Invariant 9: Hardening & Safety Blueprint (v3.3.0)] ---"
 
 if grep -q "git worktree add" "$SCRIPTS_DIR/worktree_gate.sh"; then
     log_pass "worktree_gate.sh uses git worktree add for isolation"
@@ -606,9 +606,90 @@ else
     log_fail "worktree_gate.sh missing protected path gating"
 fi
 
+# ------------------------------------------------------------
+# INVARIANT 10: Sandbox & Flaky Retry Mechanisms (v3.3.0)
+# ------------------------------------------------------------
+echo ""
+echo "--- [Invariant 10: Sandbox & Flaky Retry Mechanisms (v3.3.0)] ---"
+
+if grep -q "\-\-sandbox" "$SCRIPTS_DIR/worktree_gate.sh"; then
+    log_pass "worktree_gate.sh supports --sandbox flag"
+else
+    log_fail "worktree_gate.sh missing --sandbox support"
+fi
+
+if grep -q "\-\-sandbox" "$GATE_BIN"; then
+    log_pass "bin/jules-gate supports --sandbox flag"
+else
+    log_fail "bin/jules-gate missing --sandbox support"
+fi
+
+if grep -q "\-\-retry-flaky" "$SCRIPTS_DIR/worktree_gate.sh"; then
+    log_pass "worktree_gate.sh supports --retry-flaky flag"
+else
+    log_fail "worktree_gate.sh missing --retry-flaky support"
+fi
+
+# Test simulated flaky test suite
+TEST_REPO2=$(mktemp -d "/tmp/jules-test-repo2-XXXXXX")
+cd "$TEST_REPO2"
+git init >/dev/null 2>&1
+git branch -m main >/dev/null 2>&1
+git config user.email "test@example.com"
+git config user.name "Test"
+
+cat > "flaky_test.sh" << 'EOF'
+#!/usr/bin/env bash
+if [[ ! -f "flaky.marker" ]]; then
+    echo "Failing first run"
+    touch "flaky.marker"
+    exit 1
+else
+    echo "Passing on retry"
+    exit 0
+fi
+EOF
+chmod +x "flaky_test.sh"
+
+cat > "package.json" << 'EOF'
+{"scripts": {"test": "./flaky_test.sh"}}
+EOF
+git add flaky_test.sh package.json
+git commit -m "add flaky test runner" >/dev/null 2>&1
+
+python3 -c "open('dummy.txt', 'w').write('dummy change')"
+git add dummy.txt
+git diff --cached > "$LOG_DIR/flaky_fix.patch" 2>/dev/null || true
+git reset HEAD dummy.txt >/dev/null 2>&1
+rm -f dummy.txt
+
+cat > "$MOCK_DIR/jules" << EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *"remote pull --session 401"* ]]; then
+    cat "$LOG_DIR/flaky_fix.patch"
+fi
+EOF
+chmod +x "$MOCK_DIR/jules"
+
+set +e
+rm -f flaky.marker
+"$SCRIPTS_DIR/worktree_gate.sh" 401 main --retry-flaky 1 > "$LOG_DIR/401.log" 2>&1
+FLAKY_RETRY_EXIT=$?
+set -e
+
+if [[ "$FLAKY_RETRY_EXIT" == "0" ]]; then
+    if grep -q "FLAKY TEST RESOLVED" "$LOG_DIR/401.log"; then
+        log_pass "worktree_gate.sh --retry-flaky resolved failing test on retry"
+    else
+        log_fail "worktree_gate.sh --retry-flaky succeeded but missing FLAKY TEST RESOLVED log"
+    fi
+else
+    log_fail "worktree_gate.sh --retry-flaky failed on flaky test (exit code $FLAKY_RETRY_EXIT). Log:\n$(cat "$LOG_DIR/401.log")"
+fi
+
 # Cleanup
 export PATH="$OLD_PATH"
-rm -rf "$MOCK_DIR" "$TEST_REPO" "$LOG_DIR"
+rm -rf "$MOCK_DIR" "$TEST_REPO" "$LOG_DIR" "$TEST_REPO2"
 
 
 echo ""

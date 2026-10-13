@@ -6,7 +6,7 @@ set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 
 usage() {
-    echo "Usage: $0 <session_id> [base_branch]"
+    echo "Usage: $0 <session_id> [base_branch] [--sandbox] [--retry-flaky <N>]"
     exit 1
 }
 
@@ -14,8 +14,37 @@ if [[ $# -lt 1 ]]; then
     usage
 fi
 
-SESSION_ID="$1"
-BASE_BRANCH="${2:-$(git branch --show-current 2>/dev/null || echo 'main')}"
+SESSION_ID=""
+BASE_BRANCH=""
+SANDBOX=false
+RETRY_FLAKY=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --sandbox)
+            SANDBOX=true
+            shift
+            ;;
+        --retry-flaky)
+            RETRY_FLAKY="$2"
+            shift 2
+            ;;
+        *)
+            if [[ -z "$SESSION_ID" ]]; then
+                SESSION_ID="$1"
+            elif [[ -z "$BASE_BRANCH" ]]; then
+                BASE_BRANCH="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$SESSION_ID" ]]; then
+    usage
+fi
+
+BASE_BRANCH="${BASE_BRANCH:-$(git branch --show-current 2>/dev/null || echo 'main')}"
 if ! git rev-parse --verify "$BASE_BRANCH" >/dev/null 2>&1; then
     if [[ "$BASE_BRANCH" == "main" ]] && git rev-parse --verify "master" >/dev/null 2>&1; then
         BASE_BRANCH="master"
@@ -124,12 +153,59 @@ elif [[ -f "gradlew" ]]; then
 fi
 
 if [[ -n "$TEST_CMD" ]]; then
+    if [[ "$SANDBOX" == "true" ]]; then
+        CONTAINER_ENGINE=""
+        if command -v podman >/dev/null 2>&1; then
+            CONTAINER_ENGINE="podman"
+        elif command -v docker >/dev/null 2>&1; then
+            CONTAINER_ENGINE="docker"
+        fi
+
+        if [[ -n "$CONTAINER_ENGINE" ]]; then
+            IMAGE=""
+            if [[ "$TEST_CMD" == *"pytest"* || "$TEST_CMD" == *"python"* ]]; then
+                IMAGE="python:3.11-slim"
+            elif [[ "$TEST_CMD" == *"npm"* ]]; then
+                IMAGE="node:lts-slim"
+            elif [[ "$TEST_CMD" == *"cargo"* ]]; then
+                IMAGE="rust:slim"
+            elif [[ "$TEST_CMD" == *"go "* ]]; then
+                IMAGE="golang:alpine"
+            else
+                IMAGE="ubuntu:latest"
+            fi
+            
+            echo "==> [--sandbox] Wrapping test command in $CONTAINER_ENGINE ($IMAGE)..."
+            TEST_CMD="$CONTAINER_ENGINE run --rm --network none -v $(pwd):/workspace -w /workspace $IMAGE $TEST_CMD"
+        else
+            echo "[--sandbox] Container runtime (docker/podman) not found. Falling back to host execution."
+        fi
+    fi
+
     echo "==> Running local verification: $TEST_CMD"
     TEST_LOG=$(mktemp "/tmp/jules-test-XXXXXX")
+    
+    PASSED=false
+    
+    # First attempt
     if $TEST_CMD > "$TEST_LOG" 2>&1; then
         echo "✅ All tests passed on branch $REVIEW_BRANCH!"
         rm -f "$TEST_LOG"
+        PASSED=true
     else
+        # Retry loop
+        for (( i=1; i<=RETRY_FLAKY; i++ )); do
+            echo "==> Retrying flaky test (Attempt $i/$RETRY_FLAKY)..."
+            if $TEST_CMD > "$TEST_LOG" 2>&1; then
+                echo "⚠️  [FLAKY TEST RESOLVED] Test suite passed on retry attempt $i/$RETRY_FLAKY!"
+                rm -f "$TEST_LOG"
+                PASSED=true
+                break
+            fi
+        done
+    fi
+
+    if [[ "$PASSED" == "false" ]]; then
         echo "❌ Tests failed on branch $REVIEW_BRANCH. Reverting changes."
         echo "--- [Test Failure Diagnostics] ---"
         grep -E "^(FAILED|ERROR|=== FAIL|FAIL:) " "$TEST_LOG" | head -n 15 || true
