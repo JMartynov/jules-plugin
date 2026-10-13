@@ -8,6 +8,8 @@ GATE_BIN="$PLUGIN_ROOT/bin/jules-gate"
 SCRIPTS_DIR="$PLUGIN_ROOT/scripts"
 
 export PATH="$PLUGIN_ROOT/bin:$PATH"
+export JULES_GATE_NO_BROWSER=1
+export CI=true
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -133,6 +135,20 @@ if echo "$REPLY_OUT" | grep -q "https://jules.google.com/task/12345" && echo "$R
     log_pass "jules-gate reply outputs rapid repair instructions and URL"
 else
     log_fail "jules-gate reply missing rapid repair instructions or URL"
+fi
+
+# Verify browser suppression in headless/test mode
+if grep -q "open_browser_url" "$GATE_BIN" && grep -q "JULES_GATE_NO_BROWSER" "$GATE_BIN"; then
+    log_pass "jules-gate defines open_browser_url guarded by JULES_GATE_NO_BROWSER and CI/TESTING"
+else
+    log_fail "jules-gate missing open_browser_url headless guard"
+fi
+
+WEB_OUT=$("$GATE_BIN" web 12345 2>&1 || true)
+if echo "$WEB_OUT" | grep -q "https://jules.google.com/task/12345"; then
+    log_pass "jules-gate web executes cleanly in headless mode without browser popups"
+else
+    log_fail "jules-gate web failed in headless mode"
 fi
 
 # ------------------------------------------------------------

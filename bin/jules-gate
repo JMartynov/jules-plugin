@@ -46,6 +46,18 @@ EOF
     exit 1
 }
 
+open_browser_url() {
+    local url="$1"
+    if [[ "${JULES_GATE_NO_BROWSER:-}" == "1" || "${CI:-}" == "true" || "${TESTING:-}" == "true" ]]; then
+        return 0
+    fi
+    if command -v open >/dev/null 2>&1; then
+        open "$url" 2>/dev/null || true
+    elif command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "$url" 2>/dev/null || true
+    fi
+}
+
 if [[ $# -lt 1 ]]; then
     usage
 fi
@@ -448,11 +460,7 @@ EOF
         echo "✅ Task dismissal guidance: Please review the changes and close the session in the Web UI."
         URL="https://jules.google.com/task/$SESSION_ID"
         echo "🌐 Jules Web Task: $URL"
-        if command -v open >/dev/null 2>&1; then
-            open "$URL" 2>/dev/null || true
-        elif command -v xdg-open >/dev/null 2>&1; then
-            xdg-open "$URL" 2>/dev/null || true
-        fi
+        open_browser_url "$URL"
         ;;
     reply)
         SESSION_ID="${1:-}"
@@ -471,24 +479,22 @@ EOF
             echo "💬 Using provided text message."
         fi
         
-        # Copy to clipboard
-        if command -v pbcopy >/dev/null 2>&1; then
-            echo "$CONTENT" | pbcopy
-            echo "📋 Copied content to clipboard (pbcopy)."
-        elif command -v xclip >/dev/null 2>&1; then
-            echo "$CONTENT" | xclip -selection clipboard
-            echo "📋 Copied content to clipboard (xclip)."
-        else
-            echo "⚠️  Clipboard utilities (pbcopy/xclip) not found. Could not copy to clipboard."
+        # Copy to clipboard (only when interactive / browser enabled)
+        if [[ "${JULES_GATE_NO_BROWSER:-}" != "1" && "${CI:-}" != "true" && "${TESTING:-}" != "true" ]]; then
+            if command -v pbcopy >/dev/null 2>&1; then
+                echo "$CONTENT" | pbcopy
+                echo "📋 Copied content to clipboard (pbcopy)."
+            elif command -v xclip >/dev/null 2>&1; then
+                echo "$CONTENT" | xclip -selection clipboard
+                echo "📋 Copied content to clipboard (xclip)."
+            else
+                echo "⚠️  Clipboard utilities (pbcopy/xclip) not found. Could not copy to clipboard."
+            fi
         fi
         
         URL="https://jules.google.com/task/$SESSION_ID"
         echo "🌐 Opening Jules Web Task for rapid reply: $URL"
-        if command -v open >/dev/null 2>&1; then
-            open "$URL" 2>/dev/null || true
-        elif command -v xdg-open >/dev/null 2>&1; then
-            xdg-open "$URL" 2>/dev/null || true
-        fi
+        open_browser_url "$URL"
         ;;
     inspect)
         SESSION_ID="${1:-}"
@@ -523,11 +529,7 @@ EOF
             URL="https://jules.google.com"
         fi
         echo "🌐 Opening Jules Web Task: $URL"
-        if command -v open >/dev/null 2>&1; then
-            open "$URL" 2>/dev/null || true
-        elif command -v xdg-open >/dev/null 2>&1; then
-            xdg-open "$URL" 2>/dev/null || true
-        fi
+        open_browser_url "$URL"
         ;;
     ps|list)
         if command -v jules >/dev/null 2>&1; then
