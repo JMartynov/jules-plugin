@@ -127,9 +127,7 @@ fi
 
 if [[ "$INSTALL_CLAUDE_CODE" == true ]]; then
     echo "==> Installing Claude Code integration..."
-    mkdir -p "$CLAUDE_CODE_DIR"
-    cp "$REPO_DIR/templates/CLAUDE.md" "$CLAUDE_CODE_FILE"
-    echo "  -> Copied CLAUDE.md to $CLAUDE_CODE_FILE"
+    "$REPO_DIR/claude/install-claude.sh"
 fi
 
 echo "=========================================================="
