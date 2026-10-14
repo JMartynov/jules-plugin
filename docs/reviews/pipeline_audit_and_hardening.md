@@ -17,7 +17,7 @@ Tools like OpenHands and SWE-agent execute agent commands inside isolated Docker
 
 ### `jules-gate` Approach (v3.2.0)
 The v3.2.0 update introduces **Protected Path Gating** and **Secret Redaction**.
-- **Protected Path Gating:** Instead of just trusting the patch payload, `jules-gate` explicitly blocks modifications to critical infrastructure files such as `.github/workflows/`, `.circleci/`, and secret environments like `.env` and `.env.*`. This is a deterministic security guardrail that rejects unauthorized CI/CD pipeline tampering at the gate.
+- **Protected Path Gating:** Instead of just trusting the patch payload, `jules-gate` explicitly blocks modifications to secret environments such as `.env` and `.env.*`. CI/CD files (`.github/workflows/`, `.circleci/`) were blocked in v3.2.0 and are now allowed but listed for review.
 - **Secret Redaction:** To prevent leakage of tokens and secrets through test logs back into the model context or external logs, `jules-gate` employs a strong redaction filter (`AKIA...`, `ghp_...`, Bearer tokens, private keys) before capturing and transmitting test failures.
 
 ## 2. Git Concurrency

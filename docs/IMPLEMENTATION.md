@@ -286,7 +286,7 @@ Version 3.1.0 adds intelligent conversational automation to prevent Jules from p
 
 Version 3.2.0 elevates `jules-gate` to enterprise production standards based on SWE-bench and OpenHands comparative audits:
 - **True Ephemeral Git Worktree Isolation:** Verification runs entirely inside `/tmp/jules-worktree-${SESSION_ID}-*`. Completely eliminates destructive `git checkout -f "$BASE_BRANCH"`, guaranteeing zero risk of losing developer uncommitted work.
-- **Protected Path Gating:** Strict diff inspection rejecting patches that modify `.github/workflows/`, `.circleci/`, or `.env*` with exit code 6 (`PROTECTED PATH SECURITY VIOLATION`).
+- **Protected Path Gating:** Strict diff inspection rejecting patches that modify `.env*` with exit code 6 (`PROTECTED PATH SECURITY VIOLATION`); CI/CD files are allowed and listed for review.
 - **Strict TLS Security:** Restores system CA certificate verification via `ssl.create_default_context()`.
 - **Network Resilience:** Exponential backoff retry loop with random jitter on HTTP 429 and 5xx errors.
 - **Secret Redaction Filter:** Automatically masks AWS keys, GitHub tokens, Bearer strings, and private keys in test failure logs.

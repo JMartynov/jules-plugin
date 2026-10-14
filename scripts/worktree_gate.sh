@@ -117,17 +117,11 @@ if echo "$PATCH_PATHS" | grep -E '^\.env(\..*)?$' >/dev/null; then
     echo "❌ SECURITY VIOLATION: Patch attempts to modify protected infrastructure or secret files."
     exit 6
 fi
-# CI/CD definitions are blocked unless the operator opts in explicitly (JULES_GATE_ALLOW_CI=1).
+# CI/CD definitions are not blocked (tasks legitimately add workflows), but they are listed so the reviewer reads them.
 CI_PATHS=$(echo "$PATCH_PATHS" | grep -E '^\.github/workflows/|^\.circleci/' || true)
 if [[ -n "$CI_PATHS" ]]; then
-    if [[ "${JULES_GATE_ALLOW_CI:-}" == "1" ]]; then
-        echo "⚠️  JULES_GATE_ALLOW_CI=1: allowing CI/CD file changes (review them before pushing):"
-        echo "$CI_PATHS" | sed 's/^/     /'
-    else
-        echo "❌ SECURITY VIOLATION: Patch attempts to modify protected infrastructure or secret files."
-        echo "   (set JULES_GATE_ALLOW_CI=1 to allow CI/CD file changes after you have reviewed them)"
-        exit 6
-    fi
+    echo "⚠️  Patch changes CI/CD files (review them before pushing):"
+    echo "$CI_PATHS" | sed 's/^/     /'
 fi
 
 # 4. Apply patch

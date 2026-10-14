@@ -46,6 +46,10 @@ def evaluate_auto_answer(question):
 
 AIDA_BASE_URL = os.environ.get("JULES_API_BASE_URL", "https://aida.googleapis.com/v1/swebot")
 
+# Without a timeout a stalled connection (laptop sleep, network change) or a Keychain prompt blocks forever.
+HTTP_TIMEOUT_SECS = 30
+KEYCHAIN_TIMEOUT_SECS = 10
+
 def get_ssl_context():
     """Create strict TLS context with certifi fallback for macOS compatibility."""
     try:
@@ -65,7 +69,8 @@ def get_oauth_token():
     try:
         raw = subprocess.check_output(
             ["security", "find-generic-password", "-s", "jules-cli", "-w"],
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
+            timeout=KEYCHAIN_TIMEOUT_SECS
         ).decode("utf-8").strip()
         if raw.startswith("go-keyring-base64:"):
             raw = raw[len("go-keyring-base64:"):]
@@ -108,7 +113,7 @@ def make_request(path, method="GET", payload=None):
     
     for attempt in range(max_retries + 1):
         try:
-            with urllib.request.urlopen(req, context=ctx) as resp:
+            with urllib.request.urlopen(req, context=ctx, timeout=HTTP_TIMEOUT_SECS) as resp:
                 content = resp.read().decode("utf-8")
                 return json.loads(content) if content else {}
         except urllib.error.HTTPError as e:

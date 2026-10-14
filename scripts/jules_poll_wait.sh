@@ -46,6 +46,21 @@ echo " Timeout: ${TIMEOUT_MINS} minutes | Polling interval: 30s"
 echo " Sessions: ${SESSIONS[*]}"
 echo "=========================================================="
 
+# Run a command and kill it after N seconds, so one stuck call cannot freeze the whole watcher.
+# macOS has no `timeout`, so this uses a background watchdog. Exit code 143 means it was killed.
+CALL_TIMEOUT_SECS="${JULES_CALL_TIMEOUT:-60}"
+run_bounded() {
+    local pid watchdog rc=0
+    "$@" &
+    pid=$!
+    ( sleep "$CALL_TIMEOUT_SECS"; kill "$pid" 2>/dev/null ) >/dev/null 2>&1 &
+    watchdog=$!
+    wait "$pid" 2>/dev/null || rc=$?
+    kill "$watchdog" 2>/dev/null || true
+    wait "$watchdog" 2>/dev/null || true
+    return "$rc"
+}
+
 START_TIME=$(date +%s)
 TIMEOUT_SECS=$((TIMEOUT_MINS * 60))
 
@@ -63,7 +78,7 @@ while true; do
         exit 1
     fi
 
-    LIST_OUTPUT=$(jules remote list --session 2>&1 || true)
+    LIST_OUTPUT=$(run_bounded jules remote list --session 2>&1 || true)
 
     for SID in "${SESSIONS[@]}"; do
         # Check if already processed
@@ -84,7 +99,7 @@ while true; do
         if echo "$STATUS_LINE" | grep -qiE "Awaiting User"; then
             IS_AWAITING=true
         elif ! echo "$STATUS_LINE" | grep -qiE "Completed|Failed" && [[ -f "$SCRIPT_DIR/jules_api.py" ]]; then
-            if python3 "$SCRIPT_DIR/jules_api.py" inspect "$SID" --json 2>/dev/null | grep -q '"is_interactive": *true'; then
+            if run_bounded python3 "$SCRIPT_DIR/jules_api.py" inspect "$SID" --json 2>/dev/null | grep -q '"is_interactive": *true'; then
                 IS_AWAITING=true
             fi
         fi
@@ -101,7 +116,7 @@ while true; do
             if [[ -x "$API_SCRIPT" ]]; then
                 if [[ "$INTERACTIVE_MODE" == "true" ]]; then
                     echo "   🤖 [--interactive] Evaluating auto-answer heuristics for session $SID..."
-                    if python3 "$API_SCRIPT" auto-answer "$SID" 2>&1; then
+                    if run_bounded python3 "$API_SCRIPT" auto-answer "$SID" 2>&1; then
                         echo "   ✅ Automatically resolved boilerplate prompt. Resuming token-free watcher..."
                         AUTO_RESOLVED=true
                         sleep 10
@@ -110,7 +125,7 @@ while true; do
                     fi
                 fi
                 if [[ "$AUTO_RESOLVED" == "false" ]]; then
-                    INSPECT_JSON=$(python3 "$API_SCRIPT" inspect "$SID" --json 2>/dev/null || true)
+                    INSPECT_JSON=$(run_bounded python3 "$API_SCRIPT" inspect "$SID" --json 2>/dev/null || true)
                     QUESTION=$(echo "$INSPECT_JSON" | grep -o '"question": *"[^"]*"' | sed -E 's/"question": *"([^"]*)"/\1/' || true)
                     if [[ -n "$QUESTION" ]]; then
                         echo "   ❓ Jules Question: $QUESTION"

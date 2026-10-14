@@ -85,4 +85,21 @@ print('{"is_interactive": %s, "question": "q"}' % ("true" if sid == "222222" els
 EOS
 rc=$(PATH="$T/bin:$PATH" bash "$T/scripts/jules_poll_wait.sh" --timeout 1 111111 222222 >"$T/out" 2>&1; echo $?)
 [[ "$rc" == 10 ]] && grep -q "Session 222222 requires" "$T/out" && ! grep -q "Session 111111 requires" "$T/out" && ok "two sessions: only the waiting one raises the alarm (exit 10)" || bad "two sessions rc=$rc"
+# a hung inspect call or a hung `jules remote list` must be killed (JULES_CALL_TIMEOUT) so the watcher keeps polling and still honours --timeout
+cat > "$T/bin/jules" <<'EOS'
+#!/usr/bin/env bash
+echo " 123456  x  r  1s ago  In Progress"
+EOS
+cat > "$T/scripts/jules_api.py" <<'EOS'
+import time
+time.sleep(300)
+EOS
+t0=$(date +%s); rc=$(JULES_CALL_TIMEOUT=2 PATH="$T/bin:$PATH" bash "$T/scripts/jules_poll_wait.sh" --interactive --timeout 6 123456 >"$T/out" 2>&1 & p=$!; for _ in $(seq 1 40); do kill -0 $p 2>/dev/null || break; sleep 1; done; if kill -0 $p 2>/dev/null; then kill $p; echo hung; else wait $p; echo $?; fi); el=$(( $(date +%s) - t0 ))
+[[ "$rc" == 1 ]] && ok "hung inspect is killed; watcher times out normally (exit 1, ${el}s)" || bad "hung inspect rc=$rc (${el}s)"
+cat > "$T/bin/jules" <<'EOS'
+#!/usr/bin/env bash
+exec sleep 300
+EOS
+t0=$(date +%s); rc=$(JULES_CALL_TIMEOUT=2 PATH="$T/bin:$PATH" bash "$T/scripts/jules_poll_wait.sh" --timeout 6 123456 >"$T/out" 2>&1 & p=$!; for _ in $(seq 1 40); do kill -0 $p 2>/dev/null || break; sleep 1; done; if kill -0 $p 2>/dev/null; then kill $p; echo hung; else wait $p; echo $?; fi); el=$(( $(date +%s) - t0 ))
+[[ "$rc" == 1 ]] && ok "hung 'jules remote list' is killed; watcher times out normally (exit 1, ${el}s)" || bad "hung list rc=$rc (${el}s)"
 rm -rf "$T"; echo " Passed: $PASS  Failed: $FAIL"; [[ $FAIL -eq 0 ]]
