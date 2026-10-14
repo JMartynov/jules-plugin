@@ -111,7 +111,7 @@ cd "$WORKTREE_DIR"
 
 # 3. Protected Path Gating
 echo "==> Inspecting patch for protected path modifications..."
-PATCH_PATHS=$(git apply --numstat "$ORIGINAL_DIR/$PATCH_FILE" | awk '{print $3}')
+PATCH_PATHS=$(git apply --numstat "$ORIGINAL_DIR/$PATCH_FILE" 2>/dev/null | awk '{print $3}' || true)
 # Secret files are always blocked.
 if echo "$PATCH_PATHS" | grep -E '^\.env(\..*)?$' >/dev/null; then
     echo "❌ SECURITY VIOLATION: Patch attempts to modify protected infrastructure or secret files."
