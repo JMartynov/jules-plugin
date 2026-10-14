@@ -78,11 +78,22 @@ while true; do
             continue
         fi
 
+        # The list status does not always say "Awaiting User" while Jules waits for an answer
+        # (it can show Paused or In Progress), so ask the activity stream for sessions that are not finished.
+        IS_AWAITING=false
+        if echo "$STATUS_LINE" | grep -qiE "Awaiting User"; then
+            IS_AWAITING=true
+        elif ! echo "$STATUS_LINE" | grep -qiE "Completed|Failed" && [[ -f "$SCRIPT_DIR/jules_api.py" ]]; then
+            if python3 "$SCRIPT_DIR/jules_api.py" inspect "$SID" --json 2>/dev/null | grep -q '"is_interactive": *true'; then
+                IS_AWAITING=true
+            fi
+        fi
+
         if echo "$STATUS_LINE" | grep -qi "Completed"; then
             echo "✅ [DONE: Completed] Session $SID finalized remotely."
             echo "   🌐 Web Session: https://jules.google.com/task/$SID"
             COMPLETED_SESSIONS="${COMPLETED_SESSIONS}${SID} "
-        elif echo "$STATUS_LINE" | grep -qiE "Awaiting User"; then
+        elif [[ "$IS_AWAITING" == "true" ]]; then
             echo "⚡ [INTERACTIVE: Awaiting User Feedback] Session $SID requires user response!"
             echo "   🌐 Web Session: https://jules.google.com/task/$SID"
             API_SCRIPT="$SCRIPT_DIR/jules_api.py"

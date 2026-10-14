@@ -141,10 +141,15 @@ def inspect_session(session_id):
     latest_question = ""
     step_id = ""
 
+    answered = False
     for step in reversed(steps):
+        if step.get("userActivity"):
+            # The user (or jules-gate interact) already replied after the latest agent message.
+            answered = True
+            continue
         agent_msg = step.get("agentActivity", {}).get("agentMessaged", {})
         if agent_msg:
-            is_interactive = agent_msg.get("requiresUserResponse", False)
+            is_interactive = agent_msg.get("requiresUserResponse", False) and not answered
             latest_question = agent_msg.get("text", "")
             step_id = step.get("id", "")
             break
