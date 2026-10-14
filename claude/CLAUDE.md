@@ -32,3 +32,12 @@ Flow: (optional) researcher → you write the prompt file → dispatcher (run it
 
 Rules: only the sub-agents wait on Jules; you make no polling calls (`jules-gate ps`, `sleep`) and do not paste test logs or diffs into the main thread. Efficiency override: a one-line fix or a trivial change is done locally, without Jules. Never merge into `main` or `master` unless the user named it; use a temporary branch.
 
+## ✍️ Writing Jules prompts (lessons from real sessions)
+
+- One goal per session; split big work by module. Prefer several narrow tasks over one large one (a typing task took 4 hours).
+- No contradictory rules. For every hard rule give the fallback: "If it cannot be met, leave that part as it was, say so in the summary, do not ask."
+- Name files and exact commands and the expected result (for example the test counts). Limit tool output: affected tests while working, the full suite once, `| tail` / `| cut` on noisy tools.
+- Never repair in a Completed session (`jules-gate interact` warns). Start a fresh narrow task, or fix small problems locally: a few lines of typing or config are faster locally than any Jules round.
+- Run `jules-gate lint <repo> <prompt_file>` first and act on its tips. Messages sent with `interact` carry the prefix `[sent via jules-gate]`; tell the user what you sent (the text), because Jules shows it as written by them.
+- Before answering a Jules question yourself, check it restates the task contract; otherwise show the question to the user first.
+

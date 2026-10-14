@@ -166,6 +166,39 @@ def inspect_session(session_id):
         "suggested_answer": suggested_answer if is_interactive else None
     }
 
+DEFAULT_SENDER_LABEL = "[sent via jules-gate]"
+
+
+def sender_label():
+    """Prefix for messages sent through `interact`. Jules shows them as written by the account owner, so the
+    message says that an orchestrator sent it. JULES_GATE_SENDER_LABEL overrides it; an empty value turns it off."""
+    return os.environ.get("JULES_GATE_SENDER_LABEL", DEFAULT_SENDER_LABEL)
+
+
+def labelled(feedback_text):
+    label = sender_label()
+    return f"{label} {feedback_text}" if label else feedback_text
+
+
+REPAIR_WARNING = (
+    "⚠️  This session is already Completed. A repair round in the same session restarts the VM and replays the whole\n"
+    "   history: in practice it was several times slower than the first attempt. Prefer a fresh, narrow task, or fix a\n"
+    "   small problem locally. (Sending anyway.)"
+)
+
+
+def repair_warning(session_id):
+    """The warning text when the session is Completed (a repair round), else None. Never raises."""
+    try:
+        res = make_request(f"tasks/{session_id}", method="GET")
+        task = res.get("task", res)
+        if str(task.get("taskStatus", "")).upper() == "COMPLETED":
+            return REPAIR_WARNING
+    except Exception:
+        pass
+    return None
+
+
 def send_interact(session_id, feedback_text):
     """Send user feedback directly to Jules Cloud VM to resume execution."""
     path = f"tasks/{session_id}:interact"
@@ -173,7 +206,7 @@ def send_interact(session_id, feedback_text):
         "taskId": str(session_id),
         "userActivity": {
             "feedbackGiven": {
-                "feedback": feedback_text
+                "feedback": labelled(feedback_text)
             }
         }
     }
@@ -220,6 +253,9 @@ def main():
             else:
                 feedback_text = raw_input
 
+            warning = repair_warning(session_id)
+            if warning:
+                print(warning, file=sys.stderr)
             send_interact(session_id, feedback_text)
             print(f"✅ Successfully dispatched feedback to Jules Cloud VM for session {session_id}.")
             print("   The cloud session has resumed execution.")

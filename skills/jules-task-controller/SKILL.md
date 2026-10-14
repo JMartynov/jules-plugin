@@ -142,7 +142,9 @@ Jules is not limited to standard feature coding. Use these standardized template
 - AST / Regex Safety: Use negative lookbehinds `(?<!Server)` to avoid matching generic objects.
 #### 3. Testing:
 - Add comprehensive unit tests in `tests/test_<module>.<ext>`.
-#### 4. Completion Directive:
+#### 4. Defaults when blocked (so that Jules never has to ask):
+- If a rule above cannot be met, leave that part as it was, list it in the summary with the reason, and continue. Do not ask.
+#### 5. Completion Directive:
 - Implement all requested changes, verify with tests, and finalize your response directly with a summary. Do not ask conversational follow-up questions without asking, so the task cleanly transitions to Completed.
 ```
 
@@ -254,6 +256,21 @@ Instruct Tier 2 Analytic Verifier sub-agents (Model: `flash`) to run `jules-gate
 3. **Zero Main-Thread Context Pollution:** All terminal logs, test outputs, and patch diffs remain in the sub-agent's isolated transcript.
 
 ---
+
+---
+
+## 3a. Prompting Rules (lessons from real sessions)
+
+A repair round of a typing task took about 3.7 hours against 26 minutes for the first attempt: three questions, a VM restart after each answer, repeated full test runs and conflicting rules. These rules came out of it. `jules-gate lint` warns about the first four.
+
+1. **One goal per session; split big work by module.** Unit-test fixing took 25 minutes; Ruff plus CI and Mypy took about 4 hours each. Split by package or file group and run the parts one after another.
+2. **No contradictory rules, and a fallback for each hard one.** Write "If a rule cannot be met, leave that part as it was, say so in the summary and continue; do not ask." Many "never/do not" lines without a fallback make Jules ask.
+3. **Name the files and the exact commands** (and the expected result, for example "865 passed, 4 skipped"). Specific prompts are faster and more reliable.
+4. **Limit tool output.** Run only the affected tests while working and the full suite once at the end; pipe noisy tools through `tail` or `cut` (mypy overload errors can print tens of kilobytes).
+5. **No repair rounds in a Completed session.** Each one restarts the VM and replays the history. `jules-gate interact` warns about it. Start a fresh, narrow task, or fix small problems locally.
+6. **Pick the tool by size.** A small fix (a typing tweak, a config change, a few lines) is done locally. Jules is for well-bounded work with its own tests, such as a new module, a spike or a test suite.
+7. **Add `AGENTS.md` to the repo** (commands, test counts, forbidden paths) and, in the Jules UI, an environment setup script with a snapshot (Configuration, Initial Setup, then "Run and Snapshot").
+8. **Messages sent with `jules-gate interact` carry the prefix `[sent via jules-gate]`** (change it with `JULES_GATE_SENDER_LABEL`, empty turns it off), because Jules shows them as written by the account owner.
 
 ## 4. Gated Integration (Merge vs. PR)
 

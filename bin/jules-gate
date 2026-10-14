@@ -313,6 +313,23 @@ EOF
                 else
                     echo "  💡 Completion Tip: Add 'Finalize without asking open-ended questions' to avoid session staying in 'Awaiting User Feedback'"
                 fi
+
+                # Prompt-quality hints (lessons from slow sessions). Warnings only, they never fail the lint.
+                PROHIBITIONS=$( (grep -oiE "(^|[^a-z])(do not|don't|never|must not|not allowed|forbidden)([^a-z]|$)" "$PROMPT_FILE" || true) | wc -l | tr -d " ")
+                if [[ "$PROHIBITIONS" -ge 5 ]] && ! grep -qiE "fallback|otherwise|if .*(cannot|can't|not possible|blocked|fails)|default" "$PROMPT_FILE"; then
+                    echo "  💡 Conflict Tip: $PROHIBITIONS prohibitions but no fallback. Add 'If a rule cannot be met, do <X> and say so; do not ask' (a session asked three questions for exactly this)"
+                fi
+                NON_EMPTY=$(grep -cvE '^[[:space:]]*$' "$PROMPT_FILE" || true)
+                STEPS=$(grep -cE '^[0-9]+\. ' "$PROMPT_FILE" || true)
+                if [[ "$NON_EMPTY" -gt 80 || "$STEPS" -gt 8 ]]; then
+                    echo "  💡 Scope Tip: Long prompt ($NON_EMPTY lines, $STEPS numbered steps). One goal per session; split big work by module (long sessions took hours)"
+                fi
+                if grep -qiE "mypy|pytest|ruff|npm test|cargo test|go test|mvn " "$PROMPT_FILE" && ! grep -qiE "tail|head|cut -c|affected tests|only the .*test|-q( |$)" "$PROMPT_FILE"; then
+                    echo "  💡 Output Tip: Limit tool output (e.g. 'run only the affected tests while working, the full suite once at the end; pipe noisy tools through tail/cut')"
+                fi
+                if ! grep -qiE "[A-Za-z0-9_./-]+\.(py|js|ts|go|rs|java|md|toml|yml|yaml|json|sh)|\b(src|tests|docs|scripts)/" "$PROMPT_FILE"; then
+                    echo "  💡 Specificity Tip: Name the files or directories and the exact commands; specific prompts are faster and more reliable"
+                fi
             else
                 echo "  ❌ Prompt File: '$PROMPT_FILE' not found"
                 LINT_PASSED=false
