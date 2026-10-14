@@ -8,3 +8,5 @@ Everything specific to Claude Code lives in this folder. Antigravity does not re
 - `test_claude.sh`: checks for this folder only.
 
 A Claude Code sub-agent cannot message the main thread while running, so the dispatcher returns `NEEDS_INPUT` or `STILL_RUNNING` and the main thread answers or restarts it. New agents are picked up in a new Claude Code session.
+
+CI/CD files: `jules-gate` blocks patches touching `.github/workflows/` or `.circleci/` (exit 6). Setting `JULES_GATE_ALLOW_CI=1` for one run allows them with a warning; `.env*` stays blocked always. Use it only after reading those files.

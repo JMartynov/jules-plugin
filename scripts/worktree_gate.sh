@@ -111,9 +111,23 @@ cd "$WORKTREE_DIR"
 
 # 3. Protected Path Gating
 echo "==> Inspecting patch for protected path modifications..."
-if git apply --numstat "$ORIGINAL_DIR/$PATCH_FILE" | awk '{print $3}' | grep -E '^\.github/workflows/|^\.circleci/|^\.env(\..*)?$' >/dev/null; then
+PATCH_PATHS=$(git apply --numstat "$ORIGINAL_DIR/$PATCH_FILE" | awk '{print $3}')
+# Secret files are always blocked.
+if echo "$PATCH_PATHS" | grep -E '^\.env(\..*)?$' >/dev/null; then
     echo "❌ SECURITY VIOLATION: Patch attempts to modify protected infrastructure or secret files."
     exit 6
+fi
+# CI/CD definitions are blocked unless the operator opts in explicitly (JULES_GATE_ALLOW_CI=1).
+CI_PATHS=$(echo "$PATCH_PATHS" | grep -E '^\.github/workflows/|^\.circleci/' || true)
+if [[ -n "$CI_PATHS" ]]; then
+    if [[ "${JULES_GATE_ALLOW_CI:-}" == "1" ]]; then
+        echo "⚠️  JULES_GATE_ALLOW_CI=1: allowing CI/CD file changes (review them before pushing):"
+        echo "$CI_PATHS" | sed 's/^/     /'
+    else
+        echo "❌ SECURITY VIOLATION: Patch attempts to modify protected infrastructure or secret files."
+        echo "   (set JULES_GATE_ALLOW_CI=1 to allow CI/CD file changes after you have reviewed them)"
+        exit 6
+    fi
 fi
 
 # 4. Apply patch
@@ -150,6 +164,12 @@ elif [[ -f "pom.xml" ]]; then
     TEST_CMD="mvn test"
 elif [[ -f "gradlew" ]]; then
     TEST_CMD="./gradlew test"
+fi
+
+# Optional override (off by default): a project whose tests need its own runner, e.g. JULES_GATE_TEST_CMD="uv run pytest -q"
+if [[ -n "${JULES_GATE_TEST_CMD:-}" ]]; then
+    TEST_CMD="$JULES_GATE_TEST_CMD"
+    echo "==> Test runner overridden by JULES_GATE_TEST_CMD"
 fi
 
 if [[ -n "$TEST_CMD" ]]; then
