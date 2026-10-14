@@ -15,6 +15,9 @@ if [[ -f "$CLAUDE_CODE_FILE" ]] && ! cmp -s "$CLAUDE_DIR/CLAUDE.md" "$CLAUDE_COD
 fi
 cp "$CLAUDE_DIR/CLAUDE.md" "$CLAUDE_CODE_FILE"
 echo "  -> Copied CLAUDE.md to $CLAUDE_CODE_FILE"
+cp "$CLAUDE_DIR/jules-watch.sh" "$CLAUDE_CODE_DIR/jules-watch.sh"
+chmod +x "$CLAUDE_CODE_DIR/jules-watch.sh"
+echo "  -> Installed watcher $CLAUDE_CODE_DIR/jules-watch.sh"
 for agent in "$CLAUDE_DIR"/agents/*.md; do
     cp "$agent" "$CLAUDE_CODE_DIR/agents/$(basename "$agent")"
     echo "  -> Installed sub-agent $(basename "$agent" .md)"
