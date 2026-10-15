@@ -39,5 +39,11 @@ Rules: waiting is done only by the background `jules-watch.sh`; you make no poll
 - Name files and exact commands and the expected result (for example the test counts). Limit tool output: affected tests while working, the full suite once, `| tail` / `| cut` on noisy tools.
 - Never repair in a Completed session (`jules-gate interact` warns). Start a fresh narrow task, or fix small problems locally: a few lines of typing or config are faster locally than any Jules round.
 - Run `jules-gate lint <repo> <prompt_file>` first and act on its tips. Messages sent with `interact` carry the prefix `[sent via jules-gate]`; tell the user what you sent (the text), because Jules shows it as written by them.
-- Before answering a Jules question yourself, check it restates the task contract; otherwise show the question to the user first.
+- Before answering a Jules question yourself, check it restates the task contract; otherwise show the question to the user first. A question about changing a test expectation always goes to the user.
+- Size: a plan of more than about four steps, or a size-L task, is split into separate narrow sessions, each with one command as its gate (a size-L task of nine steps failed twice after 2.5 to 3.7 hours). Files the gate blocks (`.github/workflows/`, `.env*`) are done locally.
+- One attempt, then failed: if a session ends `Failed` or stalls, send it **one** continue-and-resolve message. If that also fails or stalls, the Jules task counts as failed: split it into narrower tasks or do it locally, and record the root cause in the task notes. Do not retry unchanged.
+- Stale watcher: after you answer a question the session list may still say "Awaiting User Feedback" for a while, so the watcher can report the same question again. Check `jules-gate inspect <session>` (Interactive State NO = answered) before treating it as new, and re-arm only once the list status has changed.
+- Tell Jules not to create scratch or helper scripts in the repo and to write each file once; helper-script patching wiped files and looped in earlier sessions.
+- Jules' OAuth token expires overnight (HTTP 401 from `jules_api.py`); any `jules remote list` call refreshes it.
+
 

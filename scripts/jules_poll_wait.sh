@@ -93,13 +93,25 @@ while true; do
             continue
         fi
 
-        # The list status does not always say "Awaiting User" while Jules waits for an answer
-        # (it can show Paused or In Progress), so ask the activity stream for sessions that are not finished.
+        # The list status can lag after an answer (still showing "Awaiting User" for 30-90s),
+        # or it can fail to show "Awaiting User" (showing Paused or In Progress instead).
+        # Always verify against the authoritative activity stream (inspect) for unfinished sessions.
         IS_AWAITING=false
-        if echo "$STATUS_LINE" | grep -qiE "Awaiting User"; then
-            IS_AWAITING=true
-        elif ! echo "$STATUS_LINE" | grep -qiE "Completed|Failed" && [[ -f "$SCRIPT_DIR/jules_api.py" ]]; then
-            if run_bounded python3 "$SCRIPT_DIR/jules_api.py" inspect "$SID" --json 2>/dev/null | grep -q '"is_interactive": *true'; then
+        if ! echo "$STATUS_LINE" | grep -qiE "Completed|Failed"; then
+            INSPECTED=false
+            if [[ -f "$SCRIPT_DIR/jules_api.py" ]]; then
+                INSPECT_JSON=$(run_bounded python3 "$SCRIPT_DIR/jules_api.py" inspect "$SID" --json 2>/dev/null || true)
+                if echo "$INSPECT_JSON" | grep -q '"is_interactive": *true'; then
+                    IS_AWAITING=true
+                    INSPECTED=true
+                elif echo "$INSPECT_JSON" | grep -q '"is_interactive": *false'; then
+                    # The activity stream shows the question was already answered (or not interactive),
+                    # even if the session list is still lagging and shows "Awaiting User".
+                    IS_AWAITING=false
+                    INSPECTED=true
+                fi
+            fi
+            if [[ "$INSPECTED" == "false" ]] && echo "$STATUS_LINE" | grep -qiE "Awaiting User"; then
                 IS_AWAITING=true
             fi
         fi

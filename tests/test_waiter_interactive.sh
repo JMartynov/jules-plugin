@@ -28,6 +28,8 @@ stub_api true;  rc=$(run "Paused");      [[ "$rc" == 10 ]] && ok "Paused status 
 stub_api true;  rc=$(run "In Progress"); [[ "$rc" == 10 ]] && ok "In Progress status + open question -> exit 10" || bad "in progress rc=$rc"
 stub_api false; rc=$(PATH="$T/bin:$PATH" FAKE_SID=123456 FAKE_STATUS="Completed" bash "$T/scripts/jules_poll_wait.sh" --interactive --timeout 1 123456 >"$T/out" 2>&1; echo $?); [[ "$rc" == 0 ]] && ok "Completed -> exit 0 (inspect not needed)" || bad "completed rc=$rc"
 stub_api true;  rc=$(PATH="$T/bin:$PATH" FAKE_SID=123456 FAKE_STATUS="Awaiting User Feedback" bash "$T/scripts/jules_poll_wait.sh" --interactive --timeout 1 123456 >"$T/out" 2>&1; echo $?); [[ "$rc" == 10 ]] && ok "Awaiting User Feedback still -> exit 10" || bad "awaiting rc=$rc"
+stub_api false; rc=$(PATH="$T/bin:$PATH" FAKE_SID=123456 FAKE_STATUS="Awaiting User Feedback" bash "$T/scripts/jules_poll_wait.sh" --interactive --timeout 1 123456 >"$T/out" 2>&1; echo $?); [[ "$rc" == 1 ]] && ok "stale Awaiting User Feedback (inspect says answered) keeps waiting -> exit 1" || bad "stale awaiting rc=$rc"
+
 
 # --- more cases -------------------------------------------------------------------------------
 # an answered question (inspect says not interactive) keeps waiting until the timeout (exit 1), no false alarm
