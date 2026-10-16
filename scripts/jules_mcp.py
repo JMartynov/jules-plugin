@@ -60,7 +60,8 @@ def handle_tools_list(msg_id, params):
                     "session_id": {"type": "string"},
                     "base_branch": {"type": "string"},
                     "sandbox": {"type": "boolean"},
-                    "retry_flaky": {"type": "integer"}
+                    "retry_flaky": {"type": "integer"},
+                    "skip_ci": {"type": "boolean"}
                 },
                 "required": ["session_id", "base_branch"]
             }
@@ -73,9 +74,51 @@ def handle_tools_list(msg_id, params):
                 "properties": {
                     "session_id": {"type": "string"},
                     "base_branch": {"type": "string"},
-                    "delete_remote": {"type": "boolean"}
+                    "delete_remote": {"type": "boolean"},
+                    "skip_ci": {"type": "boolean"}
                 },
                 "required": ["session_id", "base_branch"]
+            }
+        },
+        {
+            "name": "jules_pr",
+            "description": "Verifies session in isolated worktree, pushes review branch, and opens a GitHub PR via jules-gate pr.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string"},
+                    "base_branch": {"type": "string"},
+                    "skip_ci": {"type": "boolean"},
+                    "title": {"type": "string"},
+                    "auto_merge": {"type": "boolean"}
+                },
+                "required": ["session_id"]
+            }
+        },
+        {
+            "name": "jules_pr_merge",
+            "description": "Runs local tests on branch, merges open GitHub PR into base_branch via jules-gate pr-merge, and syncs local workspace.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "branch_or_session_id": {"type": "string"},
+                    "base_branch": {"type": "string"},
+                    "skip_ci": {"type": "boolean"}
+                },
+                "required": ["branch_or_session_id"]
+            }
+        },
+        {
+            "name": "jules_review_branch",
+            "description": "Dispatches a Mode 2 EULIS code review of a branch relative to base_branch via jules-gate review-branch.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "branch_or_session_id": {"type": "string"},
+                    "base_branch": {"type": "string"},
+                    "repo": {"type": "string"}
+                },
+                "required": ["branch_or_session_id"]
             }
         },
         {
@@ -143,11 +186,6 @@ def handle_tools_call(msg_id, params):
     worktree_gate = os.path.join(script_dir, "worktree_gate.sh")
     
     if name == "jules_dispatch":
-        # Simulate dispatch for MCP purposes by running jules remote new directly (or wrapped if needed).
-        # We'll just echo a command to see how it works, since this is an MCP server.
-        cmd = ["echo", "jules", "remote", "new", "--repo", args["repo"]]
-        # In a real implementation we would run the actual tool. Let's run a dummy echo here or the actual jules.
-        # Assuming jules is in PATH.
         cmd = ["jules", "remote", "new", "--repo", args["repo"]]
     elif name == "jules_wait":
         cmd = [jules_poll_wait, args["session_id"], "--timeout", str(args["timeout"])]
@@ -159,9 +197,36 @@ def handle_tools_call(msg_id, params):
             cmd.append("--sandbox")
         if args.get("retry_flaky"):
             cmd.extend(["--retry-flaky", str(args["retry_flaky"])])
+        if args.get("skip_ci"):
+            cmd.append("--skip-ci")
     elif name == "jules_merge":
         cmd = [jules_gate, "merge", args["session_id"], args["base_branch"]]
-        # delete_remote typically handled within merge or standard flow
+        if args.get("delete_remote"):
+            cmd.append("--delete-remote")
+        if args.get("skip_ci"):
+            cmd.append("--skip-ci")
+    elif name == "jules_pr":
+        cmd = [jules_gate, "pr", args["session_id"]]
+        if args.get("base_branch"):
+            cmd.append(args["base_branch"])
+        if args.get("skip_ci"):
+            cmd.append("--skip-ci")
+        if args.get("title"):
+            cmd.extend(["--title", args["title"]])
+        if args.get("auto_merge"):
+            cmd.append("--auto-merge")
+    elif name == "jules_pr_merge":
+        cmd = [jules_gate, "pr-merge", args["branch_or_session_id"]]
+        if args.get("base_branch"):
+            cmd.append(args["base_branch"])
+        if args.get("skip_ci"):
+            cmd.append("--skip-ci")
+    elif name == "jules_review_branch":
+        cmd = [jules_gate, "review-branch", args["branch_or_session_id"]]
+        if args.get("base_branch"):
+            cmd.append(args["base_branch"])
+        if args.get("repo"):
+            cmd.extend(["--repo", args["repo"]])
     elif name == "jules_inspect":
         cmd = ["python3", jules_api, "inspect", args["session_id"]]
     elif name == "jules_interact":
@@ -183,9 +248,8 @@ def handle_tools_call(msg_id, params):
 
     try:
         if name == "jules_dispatch":
-            # For jules dispatch we need to pass prompt via stdin
             prompt = args["prompt"]
-            result = subprocess.run(cmd, input=prompt.encode('utf-8'), capture_output=True, text=True, check=False)
+            result = subprocess.run(cmd, input=prompt, capture_output=True, text=True, check=False)
         else:
             result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         output = result.stdout + result.stderr

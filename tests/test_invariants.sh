@@ -835,6 +835,12 @@ else
     log_fail "rules/AGENTS.md or SKILL.md missing EULIS Branch Review & pr-merge documentation"
 fi
 
+if echo "$MCP_OUT" | grep -q "jules_pr_merge" && echo "$MCP_OUT" | grep -q "jules_review_branch" && echo "$MCP_OUT" | grep -q "jules_pr"; then
+    log_pass "scripts/jules_mcp.py exposes jules_pr, jules_pr_merge, and jules_review_branch MCP tools"
+else
+    log_fail "scripts/jules_mcp.py missing jules_pr, jules_pr_merge, or jules_review_branch in tools/list"
+fi
+
 echo ""
 echo "=========================================================="
 echo " INVARIANT TEST SUMMARY:"
