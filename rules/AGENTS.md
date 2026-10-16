@@ -61,3 +61,10 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
      * After an implementation branch `jules/review-<impl_id>` passes local tests via `jules-gate verify` and opens a PR via `jules-gate pr --skip-ci`, dispatch a **Mode 2 EULIS Code Review task** (`jules-gate review-branch`) against the branch diff (`git diff main...jules/review-<impl_id>`), instructing EULIS to generate a review proposal (`docs/reviews/review_task<N>.md`) and any recommended fixes.
      * Evaluate and apply the review proposal onto the task branch, re-run local tests via the `flash` test sub-agent, and automatically merge the PR into `main` (`jules-gate pr-merge`).
 
+10. **Parallel Wave Sub-Agent Fan-Out & Decoupled Pipelining Protocol:**
+    * **Sub-Agent Fan-Out Pattern:** When multiple independent Jules tasks run in parallel, spawn an isolated `flash` sub-agent for each task. Each sub-agent owns its individual lifecycle: `jules remote new` ➔ `jules-gate wait <id> --interactive` ➔ `jules-gate verify <id> <base> --skip-ci` ➔ `jules-gate merge <id> <base> --auto-rebase`.
+    * **Decoupled Pipelining (No Convoy Blocking):** As soon as one task in the parallel wave completes, it MUST NOT wait for slower siblings. The completing sub-agent verifies and integrates its patch immediately into the base branch.
+    * **Atomic Concurrency Mutex (`with_git_lock`):** All merge and PR-merge operations in `bin/jules-gate` are wrapped in an atomic directory mutex (`.git/jules_merge.lock.d`). Concurrent sub-agents attempting to integrate simultaneously queue safely without `index.lock` collisions or race conditions.
+    * **Serialized Auto-Rebase (`--auto-rebase`):** Slower siblings automatically detect if the base branch has advanced (`git merge-base` != `base head`) and rebase their review branch onto the updated base branch prior to merging, ensuring clean linear history.
+    * **Isolated Milestone Streaming:** Each sub-agent streams milestone completion reports directly to the orchestrator as tasks land, providing real-time visibility into wave progress without blocking.
+

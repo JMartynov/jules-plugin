@@ -327,6 +327,26 @@ When multiple parallel Jules branches finish across waves:
 
 ---
 
+## 5a. Parallel Wave Sub-Agent Fan-Out & Decoupled Pipelining
+
+### Architecture & Non-Blocking Decoupled Lifecycle:
+When executing multiple Jules tasks in parallel waves:
+1. **Sub-Agent Fan-Out:** The primary orchestrator spawns one dedicated `flash` sub-agent per parallel Jules task (`TypeName: 'self'`, `Model: 'flash'`).
+2. **Decoupled Early Completion (Zero Convoy Blocking):** Each sub-agent runs its own lifecycle:
+   - Dispatches remote session: `jules remote new`
+   - Waits token-free: `jules-gate wait <id> --interactive`
+   - Verifies worktree: `jules-gate verify <id> <base> --skip-ci`
+   - Merges immediately: `jules-gate merge <id> <base> --auto-rebase`
+   The fastest task integrates into `main` immediately without waiting for slower siblings.
+3. **Atomic Concurrency Mutex (`with_git_lock`):**
+   `jules-gate merge` and `jules-gate pr-merge` wrap their git checkout, rebase, merge, and push steps inside an atomic directory mutex (`.git/jules_merge.lock.d`). Sibling sub-agents attempting to integrate at the exact same moment queue smoothly without git `index.lock` collisions.
+4. **Serialized Auto-Rebase:**
+   As subsequent sibling tasks finish, `jules-gate merge --auto-rebase` detects that `main` has moved forward, rebases `jules/review-<id>` cleanly onto `main`, verifies tests, and merges.
+5. **Decoupled Escalation:**
+   If task A succeeds while task B asks an interactive question or encounters a test failure, task A merges immediately and streams its completion milestone, while task B escalates independently without blocking task A's delivery.
+
+---
+
 ## 6. Deploying Artifacts to Repository `docs/`
 
 Capture all generated outputs (security reviews, spikes, benchmark summaries) under `docs/`:

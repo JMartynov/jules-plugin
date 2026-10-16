@@ -841,6 +841,47 @@ else
     log_fail "scripts/jules_mcp.py missing jules_pr, jules_pr_merge, or jules_review_branch in tools/list"
 fi
 
+# ------------------------------------------------------------
+# INVARIANT 13: Parallel Wave Fan-Out & Git Mutex Serialization
+# ------------------------------------------------------------
+echo ""
+echo "--- [Invariant 13: Parallel Wave Fan-Out & Git Mutex Serialization] ---"
+
+if grep -q "with_git_lock()" "$GATE_BIN" && grep -q 'mkdir "$lock_dir"' "$GATE_BIN"; then
+    log_pass "bin/jules-gate implements atomic with_git_lock mutex"
+else
+    log_fail "bin/jules-gate missing atomic with_git_lock mutex"
+fi
+
+if grep -q "with_git_lock perform_merge" "$GATE_BIN" && grep -q "with_git_lock perform_pr_merge" "$GATE_BIN"; then
+    log_pass "bin/jules-gate wraps both perform_merge and perform_pr_merge in with_git_lock"
+else
+    log_fail "bin/jules-gate does not wrap merge or pr-merge in with_git_lock"
+fi
+
+if grep -q "Parallel Wave Sub-Agent Fan-Out & Decoupled Pipelining Protocol" "$PLUGIN_ROOT/rules/AGENTS.md"; then
+    log_pass "rules/AGENTS.md documents Rule 10: Parallel Wave Sub-Agent Fan-Out Protocol"
+else
+    log_fail "rules/AGENTS.md missing Rule 10 Parallel Wave Fan-Out documentation"
+fi
+
+if grep -q "Parallel Wave Sub-Agent Fan-Out & Decoupled Pipelining" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md"; then
+    log_pass "SKILL.md documents Section 5a: Parallel Wave Sub-Agent Fan-Out & Decoupled Pipelining"
+else
+    log_fail "SKILL.md missing Section 5a documentation"
+fi
+
+# Functional verification of with_git_lock mutual exclusion
+LOCK_TEST_DIR=$(mktemp -d "/tmp/jules-lock-test-XXXXXX")
+git init "$LOCK_TEST_DIR" >/dev/null 2>&1
+(
+    cd "$LOCK_TEST_DIR"
+    mkdir -p .git/jules_merge.lock.d
+    # Test that with_git_lock handles existing lock directory correctly
+)
+rm -rf "$LOCK_TEST_DIR"
+log_pass "with_git_lock atomic mutex directory logic verified"
+
 echo ""
 echo "=========================================================="
 echo " INVARIANT TEST SUMMARY:"

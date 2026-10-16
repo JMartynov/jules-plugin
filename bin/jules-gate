@@ -86,6 +86,36 @@ resolve_gh_token() {
     fi
 }
 
+with_git_lock() {
+    local git_dir
+    git_dir="$(git rev-parse --git-dir 2>/dev/null || echo '.git')"
+    local lock_dir="$git_dir/jules_merge.lock.d"
+    local max_wait=60
+    local start_time
+    start_time=$(date +%s)
+    
+    while true; do
+        if mkdir "$lock_dir" 2>/dev/null; then
+            break
+        fi
+        local now
+        now=$(date +%s)
+        local elapsed=$(( now - start_time ))
+        if [[ $elapsed -ge $max_wait ]]; then
+            echo "⚠️  [LOCK TIMEOUT] Waited ${max_wait}s for git merge lock ($lock_dir). Cleaning stale lock..." >&2
+            rm -rf "$lock_dir" 2>/dev/null || true
+            mkdir "$lock_dir" 2>/dev/null && break
+        fi
+        sleep 1
+    done
+    
+    local rc=0
+    "$@" || rc=$?
+    
+    rm -rf "$lock_dir" 2>/dev/null || true
+    return "$rc"
+}
+
 if [[ $# -lt 1 ]]; then
     usage
 fi
@@ -202,36 +232,39 @@ case "$CMD" in
         # eval is used carefully to correctly expand arguments like --retry-flaky 2
         eval "\"$SCRIPTS_DIR/worktree_gate.sh\" \"$SESSION_ID\" \"$BASE_BRANCH\" $WORKTREE_ARGS"
         
-        if [[ "$AUTO_REBASE" == "true" ]]; then
-            MERGE_BASE=$(git merge-base "$REVIEW_BRANCH" "$BASE_BRANCH" 2>/dev/null || true)
-            BASE_HEAD=$(git rev-parse "$BASE_BRANCH" 2>/dev/null || true)
-            if [[ -n "$MERGE_BASE" && -n "$BASE_HEAD" && "$MERGE_BASE" != "$BASE_HEAD" ]]; then
-                echo "==> Serialized Rebase: Base branch $BASE_BRANCH has advanced. Auto-rebasing $REVIEW_BRANCH..."
-                git checkout "$REVIEW_BRANCH"
-                if ! git rebase "$BASE_BRANCH"; then
-                    echo "❌ Semantic or textual conflict during rebase of $REVIEW_BRANCH onto $BASE_BRANCH. Aborting."
-                    git rebase --abort
-                    exit 4
+        perform_merge() {
+            if [[ "$AUTO_REBASE" == "true" ]]; then
+                MERGE_BASE=$(git merge-base "$REVIEW_BRANCH" "$BASE_BRANCH" 2>/dev/null || true)
+                BASE_HEAD=$(git rev-parse "$BASE_BRANCH" 2>/dev/null || true)
+                if [[ -n "$MERGE_BASE" && -n "$BASE_HEAD" && "$MERGE_BASE" != "$BASE_HEAD" ]]; then
+                    echo "==> Serialized Rebase: Base branch $BASE_BRANCH has advanced. Auto-rebasing $REVIEW_BRANCH..."
+                    git checkout "$REVIEW_BRANCH"
+                    if ! git rebase "$BASE_BRANCH"; then
+                        echo "❌ Semantic or textual conflict during rebase of $REVIEW_BRANCH onto $BASE_BRANCH. Aborting."
+                        git rebase --abort
+                        return 4
+                    fi
+                    echo "✅ Successfully rebased $REVIEW_BRANCH onto $BASE_BRANCH"
                 fi
-                echo "✅ Successfully rebased $REVIEW_BRANCH onto $BASE_BRANCH"
             fi
-        fi
-        
-        echo "==> Merging $REVIEW_BRANCH into $BASE_BRANCH..."
-        git checkout "$BASE_BRANCH"
-        MERGE_MSG="merge(jules): integrate verified changes from session $SESSION_ID"
-        if [[ "$SKIP_CI" == "true" ]]; then
-            MERGE_MSG="$MERGE_MSG [skip ci]"
-        fi
-        git merge --no-ff "$REVIEW_BRANCH" -m "$MERGE_MSG"
-        git branch -d "$REVIEW_BRANCH"
-        echo "✅ Successfully merged and cleaned up $REVIEW_BRANCH"
-        echo "🌐 Jules Web Task: https://jules.google.com/task/$SESSION_ID"
-        echo "💡 Tip: If this session is in 'Awaiting User Feedback' on jules.google.com, you can safely Accept or Close it."
-        if [[ "$DELETE_REMOTE" == "true" ]]; then
-            echo "==> Deleting remote review branch origin/$REVIEW_BRANCH if present..."
-            git push origin --delete "$REVIEW_BRANCH" 2>/dev/null || true
-        fi
+            
+            echo "==> Merging $REVIEW_BRANCH into $BASE_BRANCH..."
+            git checkout "$BASE_BRANCH"
+            MERGE_MSG="merge(jules): integrate verified changes from session $SESSION_ID"
+            if [[ "$SKIP_CI" == "true" ]]; then
+                MERGE_MSG="$MERGE_MSG [skip ci]"
+            fi
+            git merge --no-ff "$REVIEW_BRANCH" -m "$MERGE_MSG"
+            git branch -d "$REVIEW_BRANCH"
+            echo "✅ Successfully merged and cleaned up $REVIEW_BRANCH"
+            echo "🌐 Jules Web Task: https://jules.google.com/task/$SESSION_ID"
+            echo "💡 Tip: If this session is in 'Awaiting User Feedback' on jules.google.com, you can safely Accept or Close it."
+            if [[ "$DELETE_REMOTE" == "true" ]]; then
+                echo "==> Deleting remote review branch origin/$REVIEW_BRANCH if present..."
+                git push origin --delete "$REVIEW_BRANCH" 2>/dev/null || true
+            fi
+        }
+        with_git_lock perform_merge
         ;;
     pr)
         SESSION_ID="$1"
@@ -424,30 +457,33 @@ EOF
             cleanup_pr_wt
         fi
 
-        resolve_gh_token
-        echo "==> Pushing updates for $REVIEW_BRANCH..."
-        git push origin "$REVIEW_BRANCH" 2>/dev/null || true
+        perform_pr_merge() {
+            resolve_gh_token
+            echo "==> Pushing updates for $REVIEW_BRANCH..."
+            git push origin "$REVIEW_BRANCH" 2>/dev/null || true
 
-        echo "==> Merging Pull Request for $REVIEW_BRANCH into $BASE_BRANCH..."
-        if command -v gh >/dev/null 2>&1 && gh pr merge "$REVIEW_BRANCH" --merge --delete-branch 2>/dev/null; then
-            echo "✅ Merged PR via GitHub CLI and deleted remote branch $REVIEW_BRANCH."
-            git checkout "$BASE_BRANCH"
-            git pull origin "$BASE_BRANCH" 2>/dev/null || true
-            git branch -D "$REVIEW_BRANCH" 2>/dev/null || true
-        else
-            echo "==> Falling back to local --no-ff merge and push into $BASE_BRANCH..."
-            git checkout "$BASE_BRANCH"
-            git pull origin "$BASE_BRANCH" 2>/dev/null || true
-            MERGE_MSG="merge(jules): merge $REVIEW_BRANCH into $BASE_BRANCH"
-            if [[ "$SKIP_CI" == "true" ]]; then
-                MERGE_MSG="$MERGE_MSG [skip ci]"
+            echo "==> Merging Pull Request for $REVIEW_BRANCH into $BASE_BRANCH..."
+            if command -v gh >/dev/null 2>&1 && gh pr merge "$REVIEW_BRANCH" --merge --delete-branch 2>/dev/null; then
+                echo "✅ Merged PR via GitHub CLI and deleted remote branch $REVIEW_BRANCH."
+                git checkout "$BASE_BRANCH"
+                git pull origin "$BASE_BRANCH" 2>/dev/null || true
+                git branch -D "$REVIEW_BRANCH" 2>/dev/null || true
+            else
+                echo "==> Falling back to local --no-ff merge and push into $BASE_BRANCH..."
+                git checkout "$BASE_BRANCH"
+                git pull origin "$BASE_BRANCH" 2>/dev/null || true
+                MERGE_MSG="merge(jules): merge $REVIEW_BRANCH into $BASE_BRANCH"
+                if [[ "$SKIP_CI" == "true" ]]; then
+                    MERGE_MSG="$MERGE_MSG [skip ci]"
+                fi
+                git merge --no-ff "$REVIEW_BRANCH" -m "$MERGE_MSG"
+                git push origin "$BASE_BRANCH" 2>/dev/null || true
+                git branch -d "$REVIEW_BRANCH" 2>/dev/null || true
+                git push origin --delete "$REVIEW_BRANCH" 2>/dev/null || true
+                echo "✅ Merged $REVIEW_BRANCH into $BASE_BRANCH locally and pushed to origin."
             fi
-            git merge --no-ff "$REVIEW_BRANCH" -m "$MERGE_MSG"
-            git push origin "$BASE_BRANCH" 2>/dev/null || true
-            git branch -d "$REVIEW_BRANCH" 2>/dev/null || true
-            git push origin --delete "$REVIEW_BRANCH" 2>/dev/null || true
-            echo "✅ Merged $REVIEW_BRANCH into $BASE_BRANCH locally and pushed to origin."
-        fi
+        }
+        with_git_lock perform_pr_merge
         ;;
     review-branch|review-pr)
         TARGET_REF="${1:-}"
