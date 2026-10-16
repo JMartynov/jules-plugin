@@ -3,10 +3,27 @@ import sys
 import os
 import json
 import subprocess
+import re
 
 def send_response(message):
     sys.stdout.write(json.dumps(message) + "\n")
     sys.stdout.flush()
+
+def send_progress_notification(progress_token, progress=None, total=None, message=None):
+    if not progress_token:
+        return
+    params = {"progressToken": progress_token}
+    if progress is not None:
+        params["progress"] = progress
+    if total is not None:
+        params["total"] = total
+    if message is not None:
+        params["message"] = message
+    send_response({
+        "jsonrpc": "2.0",
+        "method": "notifications/progress",
+        "params": params
+    })
 
 def handle_initialize(msg_id, params):
     send_response({
@@ -40,15 +57,30 @@ def handle_tools_list(msg_id, params):
         },
         {
             "name": "jules_wait",
-            "description": "Waits token-free using jules_poll_wait.sh.",
+            "description": "Waits token-free using jules_poll_wait.sh and emits real-time MCP notifications/progress streaming.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "session_id": {"type": "string"},
                     "timeout": {"type": "integer"},
-                    "interactive": {"type": "boolean"}
+                    "interactive": {"type": "boolean"},
+                    "progressToken": {"type": "string"}
                 },
                 "required": ["session_id", "timeout"]
+            }
+        },
+        {
+            "name": "jules_stream",
+            "description": "Streams real-time activity steps and progress for a Jules session using MCP notifications/progress.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string"},
+                    "timeout": {"type": "integer"},
+                    "interactive": {"type": "boolean"},
+                    "progressToken": {"type": "string"}
+                },
+                "required": ["session_id"]
             }
         },
         {
@@ -187,9 +219,10 @@ def handle_tools_call(msg_id, params):
     
     if name == "jules_dispatch":
         cmd = ["jules", "remote", "new", "--repo", args["repo"]]
-    elif name == "jules_wait":
-        cmd = [jules_poll_wait, args["session_id"], "--timeout", str(args["timeout"])]
-        if args.get("interactive"):
+    elif name in ("jules_wait", "jules_stream"):
+        timeout = args.get("timeout", 25)
+        cmd = [jules_poll_wait, args["session_id"], "--timeout", str(timeout)]
+        if args.get("interactive", True):
             cmd.append("--interactive")
     elif name == "jules_verify":
         cmd = [worktree_gate, args["session_id"], args["base_branch"]]
@@ -247,18 +280,54 @@ def handle_tools_call(msg_id, params):
         return
 
     try:
+        progress_token = params.get("_meta", {}).get("progressToken") or args.get("progressToken")
+        if name in ("jules_wait", "jules_stream") and not progress_token:
+            progress_token = f"jules-{args.get('session_id', 'task')}"
+
         if name == "jules_dispatch":
             prompt = args["prompt"]
             result = subprocess.run(cmd, input=prompt, capture_output=True, text=True, check=False)
+            output = result.stdout + result.stderr
+            rc = result.returncode
+        elif progress_token and name in ("jules_wait", "jules_stream", "jules_verify", "jules_pr_merge"):
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1
+            )
+            output_lines = []
+            iteration = 0
+            max_iterations = int(args.get("timeout", 25)) * 2
+            for raw_line in iter(proc.stdout.readline, ''):
+                line = raw_line.strip()
+                output_lines.append(raw_line)
+                if line:
+                    match = re.search(r"Iteration (\d+)/(\d+)", line)
+                    if match:
+                        iteration = int(match.group(1))
+                        max_iterations = int(match.group(2))
+                    send_progress_notification(
+                        progress_token=progress_token,
+                        progress=iteration if iteration > 0 else None,
+                        total=max_iterations if iteration > 0 else None,
+                        message=line
+                    )
+            proc.stdout.close()
+            rc = proc.wait()
+            output = "".join(output_lines)
         else:
             result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        output = result.stdout + result.stderr
+            output = result.stdout + result.stderr
+            rc = result.returncode
+
         send_response({
             "jsonrpc": "2.0",
             "id": msg_id,
             "result": {
                 "content": [{"type": "text", "text": output}],
-                "isError": result.returncode != 0
+                "isError": rc != 0
             }
         })
     except Exception as e:

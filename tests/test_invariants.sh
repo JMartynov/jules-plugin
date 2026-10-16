@@ -773,6 +773,12 @@ else
     log_fail "scripts/jules_mcp.py failed to return tools/list. Output: $MCP_OUT"
 fi
 
+if echo "$MCP_OUT" | grep -q "jules_stream" && grep -q "notifications/progress" "$MCP_SERVER"; then
+    log_pass "scripts/jules_mcp.py supports jules_stream and MCP notifications/progress streaming"
+else
+    log_fail "scripts/jules_mcp.py missing jules_stream or notifications/progress streaming"
+fi
+
 INSTALLER_HELP=$("$INSTALLER" --help 2>&1 || true)
 if echo "$INSTALLER_HELP" | grep -q -- "--claude-desktop" && echo "$INSTALLER_HELP" | grep -q -- "--all"; then
     log_pass "install.sh documents --claude-desktop and --all flags"
