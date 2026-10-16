@@ -793,6 +793,48 @@ fi
 export HOME="$OLD_HOME"
 rm -rf "$INSTALL_TEST_DIR"
 
+# ------------------------------------------------------------
+# INVARIANT 12: Worktree PYTHONPATH, .venv/uv, --skip-ci, pr-merge & review-branch
+# ------------------------------------------------------------
+echo ""
+echo "--- [Invariant 12: Local Test Isolation, --skip-ci & Branch Review] ---"
+
+if grep -q 'export PYTHONPATH="${WORKTREE_DIR}/src:${WORKTREE_DIR}:${PYTHONPATH:-}"' "$SCRIPTS_DIR/worktree_gate.sh"; then
+    log_pass "worktree_gate.sh exports isolated worktree PYTHONPATH"
+else
+    log_fail "worktree_gate.sh missing isolated worktree PYTHONPATH export"
+fi
+
+if grep -q '$ORIGINAL_DIR/.venv/bin/python -m pytest -q --tb=short' "$SCRIPTS_DIR/worktree_gate.sh" && grep -q 'uv run pytest -q --tb=short' "$SCRIPTS_DIR/worktree_gate.sh"; then
+    log_pass "worktree_gate.sh prioritizes .venv/bin/python pytest and supports uv"
+else
+    log_fail "worktree_gate.sh missing .venv or uv pytest detection"
+fi
+
+if grep -q -- "--skip-ci" "$SCRIPTS_DIR/worktree_gate.sh" && grep -q -- "--skip-ci" "$GATE_BIN"; then
+    log_pass "worktree_gate.sh and bin/jules-gate support --skip-ci flag"
+else
+    log_fail "worktree_gate.sh or bin/jules-gate missing --skip-ci support"
+fi
+
+if grep -q 'gh auth token --user "$REPO_OWNER"' "$GATE_BIN"; then
+    log_pass "bin/jules-gate automatically resolves repository owner GH_TOKEN"
+else
+    log_fail "bin/jules-gate missing multi-account GH_TOKEN resolution"
+fi
+
+if grep -q "pr-merge)" "$GATE_BIN" && grep -q "review-branch|review-pr)" "$GATE_BIN"; then
+    log_pass "bin/jules-gate implements pr-merge and review-branch subcommands"
+else
+    log_fail "bin/jules-gate missing pr-merge or review-branch subcommands"
+fi
+
+if grep -q "pr-merge" "$PLUGIN_ROOT/rules/AGENTS.md" && grep -q "pr-merge" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md"; then
+    log_pass "rules/AGENTS.md and SKILL.md document EULIS Branch Review & pr-merge workflow"
+else
+    log_fail "rules/AGENTS.md or SKILL.md missing EULIS Branch Review & pr-merge documentation"
+fi
+
 echo ""
 echo "=========================================================="
 echo " INVARIANT TEST SUMMARY:"

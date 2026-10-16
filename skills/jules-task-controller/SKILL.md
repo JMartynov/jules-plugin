@@ -48,9 +48,11 @@ To maximize token efficiency (<0.8% relative compute cost), the system employs a
 | `jules-gate auto-answer <session_id>` | Evaluates auto-answer heuristics | **Unblocks boilerplate review sign-offs autonomously** |
 | `jules-gate inspect <session_id>` | Extracts interactive questions from cloud task | **Retrieves exact Jules prompt needing answer** |
 | `jules-gate interact <id> <msg>` | Sends feedback directly into running cloud VM | **Unblocks Jules without restarting session** |
-| `jules-gate verify <id> [base_branch]` | Pulls patch to clean branch & runs tests | **Auto-detects pytest, npm, cargo, go, mvn** |
-| `jules-gate merge <id> [base] [--delete-remote]` | Auto-rebases and merges review branch | **Guarded: Refuses to merge interactive tasks (exit 5)** |
-| `jules-gate pr <id> [base_branch]` | Pushes verified branch & opens GitHub PR | **Guaranteed green CI, zero wasted runner hours** |
+| `jules-gate verify <id> [base] [--skip-ci]` | Pulls patch to isolated worktree & runs local tests | **Prioritizes worktree `src/`, `.venv`/`uv`, compact 1-line summary** |
+| `jules-gate merge <id> [base] [--skip-ci]` | Auto-rebases and merges review branch | **Guarded: Refuses to merge interactive tasks (exit 5)** |
+| `jules-gate pr <id> [base] [--skip-ci] [--auto-merge]` | Pushes verified branch & opens GitHub PR | **Multi-account `GH_TOKEN` resolution, optional `[skip ci]` & auto-merge** |
+| `jules-gate pr-merge <branch_or_id> [base]` | Runs local tests, merges PR into base & syncs local | **Seamless GitHub PR merge with local `--no-ff` fallback** |
+| `jules-gate review-branch <branch_or_id> [base]` | Dispatches Mode 2 EULIS code review of branch diff | **Generates `docs/reviews/review_<branch>.md` proposal & fixes** |
 | `jules-gate close [session_id]` | Dismiss task and open URL to close session | **Direct 1-click web session dismissal** |
 | `jules-gate reply <id> <file>` | Copies failure log and opens VM | **Rapid feedback for in-VM zero-overhead repair** |
 | `jules-gate web [session_id]` | Opens session URL or dashboard in browser | **Direct 1-click cloud session review and dismissal** |
@@ -272,19 +274,40 @@ A repair round of a typing task took about 3.7 hours against 26 minutes for the 
 7. **Add `AGENTS.md` to the repo** (commands, test counts, forbidden paths) and, in the Jules UI, an environment setup script with a snapshot (Configuration, Initial Setup, then "Run and Snapshot").
 8. **Messages sent with `jules-gate interact` carry the prefix `[sent via jules-gate]`** (change it with `JULES_GATE_SENDER_LABEL`, empty turns it off), because Jules shows them as written by the account owner.
 
-## 4. Gated Integration (Merge vs. PR)
+## 4. Gated Integration, EULIS Branch Review & Auto-Merge Protocol
+
+### Strict Sub-Agent Delegation for Local Tests (`jules-gate verify`)
+- Neither the primary orchestrator nor a dispatch worker should run raw test suites in the main context.
+- `jules-gate verify` MUST always be invoked inside an isolated `flash` Verifier Sub-Agent, which sets `PYTHONPATH="${WORKTREE_DIR}/src:${WORKTREE_DIR}"`, auto-detects `$ORIGINAL_DIR/.venv/bin/python -m pytest -q --tb=short` or `uv`, and returns only the concise 1-line pass/fail digest to the parent agent.
+
+### CI/CD Suppression During Iterative Development (`--skip-ci`)
+- Pass `--skip-ci` (or export `JULES_GATE_SKIP_CI=1`) to `jules-gate verify`, `jules-gate pr`, and `jules-gate merge` so commits and PR titles include `[skip ci]` and do not trigger redundant GitHub Actions pipelines during iterative development.
 
 ### Path A: Solo / Direct Integration
 ```bash
-jules-gate merge <session_id> [base_branch]
+jules-gate merge <session_id> [base_branch] [--skip-ci]
 ```
 *Merges the review branch into your target branch with `--no-ff` and cleans up the temporary branch.*
 
-### Path B: Enterprise Gated Pull Request
-```bash
-jules-gate pr <session_id> [base_branch]
-```
-*Pushes the review branch to GitHub and opens a Pull Request using `gh pr create`. Automatically embeds the **Token Efficiency Badge** (spared tokens and diff line counts) into the PR description and guarantees green CI runs.*
+### Path B: Per-Task Branch, EULIS Code Review & Auto-Merge Lifecycle
+1. **Documentation & Implementation Verification:**
+   - Every task must update relevant documentation (`README.md`, `docs/*.md`) alongside code changes.
+   - Verify the implementation session and open a PR without triggering CI:
+     ```bash
+     jules-gate pr <impl_session_id> main --skip-ci --title "feat(task-N): <summary>"
+     ```
+2. **Dispatch Mode 2 EULIS Branch Review (`jules-gate review-branch`):**
+   - Dispatch an automated EULIS code review against the task branch diff (`git diff main...jules/review-<impl_id>`):
+     ```bash
+     jules-gate review-branch jules/review-<impl_id> main
+     ```
+   - EULIS generates a detailed review proposal in `docs/reviews/review_<branch_or_task>.md` along with any recommended fixes.
+3. **Apply Review Fixes, Re-Verify in `flash` Sub-Agent & Auto-Merge (`jules-gate pr-merge`):**
+   - Evaluate and apply the review proposal onto the task branch, re-run local tests via the `flash` test sub-agent, and automatically merge the PR into `main`:
+     ```bash
+     jules-gate pr-merge jules/review-<impl_id> main --skip-ci
+     ```
+   - `jules-gate pr` also supports `--auto-merge` to execute `pr-merge` immediately after PR creation.
 
 ---
 

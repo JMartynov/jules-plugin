@@ -6,7 +6,7 @@ set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 
 usage() {
-    echo "Usage: $0 <session_id> [base_branch] [--sandbox] [--retry-flaky <N>]"
+    echo "Usage: $0 <session_id> [base_branch] [--sandbox] [--retry-flaky <N>] [--skip-ci]"
     exit 1
 }
 
@@ -18,6 +18,10 @@ SESSION_ID=""
 BASE_BRANCH=""
 SANDBOX=false
 RETRY_FLAKY=0
+SKIP_CI=false
+if [[ "${JULES_GATE_SKIP_CI:-}" == "1" ]]; then
+    SKIP_CI=true
+fi
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -28,6 +32,10 @@ while [[ $# -gt 0 ]]; do
         --retry-flaky)
             RETRY_FLAKY="$2"
             shift 2
+            ;;
+        --skip-ci)
+            SKIP_CI=true
+            shift
             ;;
         *)
             if [[ -z "$SESSION_ID" ]]; then
@@ -136,13 +144,18 @@ git add -A
 
 # 4. Auto-detect and execute test runner
 echo "==> Detecting test runner..."
+export PYTHONPATH="${WORKTREE_DIR}/src:${WORKTREE_DIR}:${PYTHONPATH:-}"
 TEST_CMD=""
 
 if [[ -f "pyproject.toml" || -f "pytest.ini" || -f "setup.py" || -f "requirements.txt" || -n "$(find . -maxdepth 2 -name 'test_*.py' 2>/dev/null | head -n 1)" || (-d "tests" && -n "$(find tests -name '*.py' 2>/dev/null | head -n 1)") ]]; then
-    if python3 -m pytest --version >/dev/null 2>&1; then
-        TEST_CMD="python3 -m pytest"
+    if [[ -x "$ORIGINAL_DIR/.venv/bin/pytest" ]]; then
+        TEST_CMD="$ORIGINAL_DIR/.venv/bin/python -m pytest -q --tb=short"
+    elif python3 -m pytest --version >/dev/null 2>&1; then
+        TEST_CMD="python3 -m pytest -q --tb=short"
+    elif command -v uv >/dev/null 2>&1 && [[ -f "pyproject.toml" ]]; then
+        TEST_CMD="uv run pytest -q --tb=short"
     elif command -v pytest >/dev/null 2>&1 && pytest --version >/dev/null 2>&1; then
-        TEST_CMD="pytest"
+        TEST_CMD="pytest -q --tb=short"
     else
         TEST_CMD="python3 -m unittest discover -s . -p 'test_*.py'"
     fi
@@ -204,6 +217,7 @@ if [[ -n "$TEST_CMD" ]]; then
     # First attempt
     if $TEST_CMD > "$TEST_LOG" 2>&1; then
         echo "✅ All tests passed on branch $REVIEW_BRANCH!"
+        tail -n 3 "$TEST_LOG" | grep -E "passed|skipped|warning" || true
         rm -f "$TEST_LOG"
         PASSED=true
     else
@@ -212,6 +226,7 @@ if [[ -n "$TEST_CMD" ]]; then
             echo "==> Retrying flaky test (Attempt $i/$RETRY_FLAKY)..."
             if $TEST_CMD > "$TEST_LOG" 2>&1; then
                 echo "⚠️  [FLAKY TEST RESOLVED] Test suite passed on retry attempt $i/$RETRY_FLAKY!"
+                tail -n 3 "$TEST_LOG" | grep -E "passed|skipped|warning" || true
                 rm -f "$TEST_LOG"
                 PASSED=true
                 break
@@ -256,7 +271,11 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%d")
 REPO_NAME=$(git config --get remote.origin.url 2>/dev/null || basename "$(pwd)")
 echo "$TIMESTAMP|$SESSION_ID|$REPO_NAME|verified|$LINES_ADDED|$LINES_REMOVED|$ESTIMATED_TOKENS" >> "$TELEMETRY_DIR/telemetry.log" 2>/dev/null || true
 
-git commit -m "jules($SESSION_ID): verified changes applied from remote session" || true
+COMMIT_MSG="jules($SESSION_ID): verified changes applied from remote session"
+if [[ "$SKIP_CI" == "true" ]]; then
+    COMMIT_MSG="$COMMIT_MSG [skip ci]"
+fi
+git commit -m "$COMMIT_MSG" || true
 
 # Change back to original directory before cleanup
 cd "$ORIGINAL_DIR"

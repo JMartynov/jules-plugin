@@ -52,3 +52,12 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
    * **Escalation to Main Calling Agent:** If the sub-agent cannot answer the question from the contract, it MUST message the Main Calling Agent (`send_message`).
    * **Escalation to User:** The Main Calling Agent answers from higher-level context or prompts the human user via `ask_question`. Once answered, the response cascades back to Jules via `jules-gate interact`, and execution resumes until reaching clean `Completed` status.
    * **Strict Prohibition on Manual Gate Bypasses:** Sub-agents encountering `jules-gate wait` exit code 1 (timeout) or exit code 10 (interactive) must NEVER bypass the verification gate with manual `jules remote pull --apply` or local branch merges. Sub-agents MUST escalate to the Main Calling Agent (`send_message`) to resolve interactive prompts or timeouts.
+
+9. **Sub-Agent Local Test & EULIS Branch Review Protocol:**
+   * **Strict Sub-Agent Delegation for Local Tests (`jules-gate verify`):** Neither the primary orchestrator nor a dispatch worker should run raw test suites in the main context. `jules-gate verify` MUST always be invoked inside an isolated `flash` Verifier Sub-Agent, which executes tests against the worktree's own `PYTHONPATH` (`${WORKTREE_DIR}/src`) and returns only the concise pass/fail digest to the parent agent.
+   * **CI/CD Suppression During Iterative Development (`--skip-ci`):** Use `--skip-ci` (or `JULES_GATE_SKIP_CI=1`) in `jules-gate verify`, `jules-gate pr`, and `jules-gate merge` so development commits and PRs include `[skip ci]` and do not trigger redundant GitHub Actions pipelines.
+   * **Per-Task Branch, EULIS Code Review & Auto-Merge Workflow:**
+     * Every task must update relevant documentation (`README.md`, `docs/*.md`) alongside code changes.
+     * After an implementation branch `jules/review-<impl_id>` passes local tests via `jules-gate verify` and opens a PR via `jules-gate pr --skip-ci`, dispatch a **Mode 2 EULIS Code Review task** (`jules-gate review-branch`) against the branch diff (`git diff main...jules/review-<impl_id>`), instructing EULIS to generate a review proposal (`docs/reviews/review_task<N>.md`) and any recommended fixes.
+     * Evaluate and apply the review proposal onto the task branch, re-run local tests via the `flash` test sub-agent, and automatically merge the PR into `main` (`jules-gate pr-merge`).
+

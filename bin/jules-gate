@@ -28,9 +28,11 @@ Usage: jules-gate <command> [arguments...]
 
 Commands:
   wait <session_id...> [--timeout MINS] [--interactive|-i]  Poll and wait for Jules session(s). With --interactive, auto-answers boilerplate prompts.
-  verify <session_id> [base_branch] [--sandbox] [--retry-flaky <N>]  Pull patch, checkout isolated review branch, run tests, and gate.
-  merge <session_id> [base] [--no-rebase] [--delete-remote] [--sandbox] [--retry-flaky <N>] Verify, auto-rebase, and merge review branch.
-  pr <session_id> [base_branch] [--sandbox] [--retry-flaky <N>] Verify and push review branch, opening a verified GitHub PR via `gh`.
+  verify <session_id> [base_branch] [--sandbox] [--retry-flaky <N>] [--skip-ci]  Pull patch, checkout isolated review branch, run tests, and gate.
+  merge <session_id> [base] [--no-rebase] [--delete-remote] [--sandbox] [--retry-flaky <N>] [--skip-ci] Verify, auto-rebase, and merge review branch.
+  pr <session_id> [base_branch] [--sandbox] [--retry-flaky <N>] [--skip-ci] [--title <title>] [--auto-merge] Verify and push review branch, opening a verified GitHub PR via `gh`.
+  pr-merge <branch_or_session_id> [base_branch] [--skip-ci] Verify local tests, merge open GitHub PR into base branch, and sync local workspace.
+  review-branch <branch_or_session_id> [base_branch] [--repo <owner/repo>] Dispatch EULIS code review of a branch relative to base branch.
   lint <repo> [prompt_file]              Pre-flight contract linter to validate repo connection and prompt spec.
   tokens [--json] [--reset]              Display cumulative estimated tokens spared across sessions.
   inspect <session_id> [--json]          Inspect activity stream & extract interactive question from Jules.
@@ -58,6 +60,32 @@ open_browser_url() {
     fi
 }
 
+resolve_gh_token() {
+    if [[ -n "${GH_TOKEN:-}" ]]; then
+        export GH_TOKEN
+        return 0
+    fi
+    if ! command -v gh >/dev/null 2>&1; then
+        return 0
+    fi
+    local REPO_OWNER="${JULES_GATE_GH_USER:-}"
+    if [[ -z "$REPO_OWNER" ]]; then
+        local remote_url
+        remote_url=$(git remote get-url origin 2>/dev/null || true)
+        if [[ -n "$remote_url" ]]; then
+            REPO_OWNER=$(echo "$remote_url" | sed -E 's#.*github\.com[:/]([^/]+)/.*#\1#' || true)
+        fi
+    fi
+    if [[ -n "$REPO_OWNER" ]]; then
+        GH_TOKEN=$(gh auth token --user "$REPO_OWNER" 2>/dev/null || gh auth token) || true
+    else
+        GH_TOKEN=$(gh auth token 2>/dev/null || true)
+    fi
+    if [[ -n "$GH_TOKEN" ]]; then
+        export GH_TOKEN
+    fi
+}
+
 if [[ $# -lt 1 ]]; then
     usage
 fi
@@ -74,6 +102,9 @@ case "$CMD" in
         shift
         BASE_BRANCH=""
         WORKTREE_ARGS=""
+        if [[ "${JULES_GATE_SKIP_CI:-}" == "1" ]]; then
+            WORKTREE_ARGS="$WORKTREE_ARGS --skip-ci"
+        fi
         while [[ $# -gt 0 ]]; do
             case "$1" in
                 --sandbox)
@@ -83,6 +114,10 @@ case "$CMD" in
                 --retry-flaky)
                     WORKTREE_ARGS="$WORKTREE_ARGS --retry-flaky $2"
                     shift 2
+                    ;;
+                --skip-ci)
+                    WORKTREE_ARGS="$WORKTREE_ARGS --skip-ci"
+                    shift
                     ;;
                 *)
                     if [[ -z "$BASE_BRANCH" ]]; then
@@ -102,7 +137,12 @@ case "$CMD" in
         BASE_BRANCH=""
         DELETE_REMOTE=false
         AUTO_REBASE=true
+        SKIP_CI=false
         WORKTREE_ARGS=""
+        if [[ "${JULES_GATE_SKIP_CI:-}" == "1" ]]; then
+            SKIP_CI=true
+            WORKTREE_ARGS="$WORKTREE_ARGS --skip-ci"
+        fi
         while [[ $# -gt 0 ]]; do
             case "$1" in
                 --delete-remote)
@@ -120,6 +160,11 @@ case "$CMD" in
                 --retry-flaky)
                     WORKTREE_ARGS="$WORKTREE_ARGS --retry-flaky $2"
                     shift 2
+                    ;;
+                --skip-ci)
+                    SKIP_CI=true
+                    WORKTREE_ARGS="$WORKTREE_ARGS --skip-ci"
+                    shift
                     ;;
                 *)
                     if [[ -z "$BASE_BRANCH" ]]; then
@@ -153,7 +198,7 @@ case "$CMD" in
             fi
         fi
 
-        # Pass extra WORKTREE_ARGS which may contain --sandbox, --retry-flaky, etc.
+        # Pass extra WORKTREE_ARGS which may contain --sandbox, --retry-flaky, --skip-ci, etc.
         # eval is used carefully to correctly expand arguments like --retry-flaky 2
         eval "\"$SCRIPTS_DIR/worktree_gate.sh\" \"$SESSION_ID\" \"$BASE_BRANCH\" $WORKTREE_ARGS"
         
@@ -174,7 +219,11 @@ case "$CMD" in
         
         echo "==> Merging $REVIEW_BRANCH into $BASE_BRANCH..."
         git checkout "$BASE_BRANCH"
-        git merge --no-ff "$REVIEW_BRANCH" -m "merge(jules): integrate verified changes from session $SESSION_ID"
+        MERGE_MSG="merge(jules): integrate verified changes from session $SESSION_ID"
+        if [[ "$SKIP_CI" == "true" ]]; then
+            MERGE_MSG="$MERGE_MSG [skip ci]"
+        fi
+        git merge --no-ff "$REVIEW_BRANCH" -m "$MERGE_MSG"
         git branch -d "$REVIEW_BRANCH"
         echo "✅ Successfully merged and cleaned up $REVIEW_BRANCH"
         echo "🌐 Jules Web Task: https://jules.google.com/task/$SESSION_ID"
@@ -189,6 +238,13 @@ case "$CMD" in
         shift
         BASE_BRANCH=""
         WORKTREE_ARGS=""
+        SKIP_CI=false
+        CUSTOM_TITLE=""
+        AUTO_MERGE=false
+        if [[ "${JULES_GATE_SKIP_CI:-}" == "1" ]]; then
+            SKIP_CI=true
+            WORKTREE_ARGS="$WORKTREE_ARGS --skip-ci"
+        fi
         while [[ $# -gt 0 ]]; do
             case "$1" in
                 --sandbox)
@@ -198,6 +254,19 @@ case "$CMD" in
                 --retry-flaky)
                     WORKTREE_ARGS="$WORKTREE_ARGS --retry-flaky $2"
                     shift 2
+                    ;;
+                --skip-ci)
+                    SKIP_CI=true
+                    WORKTREE_ARGS="$WORKTREE_ARGS --skip-ci"
+                    shift
+                    ;;
+                --title)
+                    CUSTOM_TITLE="$2"
+                    shift 2
+                    ;;
+                --auto-merge)
+                    AUTO_MERGE=true
+                    shift
                     ;;
                 *)
                     if [[ -z "$BASE_BRANCH" ]]; then
@@ -239,12 +308,221 @@ All tests passed on isolated review branch \`$REVIEW_BRANCH\` against base \`$BA
 🌐 **Google Jules Web Task:** https://jules.google.com/task/$SESSION_ID
 EOF
 )
-        
+        PR_TITLE="${CUSTOM_TITLE:-feat(jules): session $SESSION_ID}"
+        if [[ "$SKIP_CI" == "true" && "$PR_TITLE" != *"[skip ci]"* ]]; then
+            PR_TITLE="$PR_TITLE [skip ci]"
+        fi
+
+        resolve_gh_token
         echo "==> Pushing $REVIEW_BRANCH and creating Pull Request..."
         git push -u origin "$REVIEW_BRANCH"
-        gh pr create --base "$BASE_BRANCH" --head "$REVIEW_BRANCH" --title "feat(jules): session $SESSION_ID" --body "$PR_BODY"
+        gh pr create --base "$BASE_BRANCH" --head "$REVIEW_BRANCH" --title "$PR_TITLE" --body "$PR_BODY"
         echo "✅ Pull request successfully created!"
         echo "🌐 Jules Web Task: https://jules.google.com/task/$SESSION_ID"
+
+        if [[ "$AUTO_MERGE" == "true" ]]; then
+            echo "==> [--auto-merge] Merging Pull Request for $REVIEW_BRANCH into $BASE_BRANCH..."
+            "$0" pr-merge "$REVIEW_BRANCH" "$BASE_BRANCH" $([[ "$SKIP_CI" == "true" ]] && echo "--skip-ci" || true)
+        fi
+        ;;
+    pr-merge)
+        TARGET_REF="${1:-}"
+        if [[ -z "$TARGET_REF" ]]; then
+            echo "Usage: jules-gate pr-merge <branch_or_session_id> [base_branch] [--skip-ci]"
+            exit 1
+        fi
+        shift
+        BASE_BRANCH=""
+        SKIP_CI=false
+        if [[ "${JULES_GATE_SKIP_CI:-}" == "1" ]]; then
+            SKIP_CI=true
+        fi
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --skip-ci)
+                    SKIP_CI=true
+                    shift
+                    ;;
+                *)
+                    if [[ -z "$BASE_BRANCH" ]]; then
+                        BASE_BRANCH="$1"
+                    fi
+                    shift
+                    ;;
+            esac
+        done
+
+        BASE_BRANCH="${BASE_BRANCH:-$(git branch --show-current 2>/dev/null || echo 'main')}"
+        if ! git rev-parse --verify "$BASE_BRANCH" >/dev/null 2>&1; then
+            if [[ "$BASE_BRANCH" == "main" ]] && git rev-parse --verify "master" >/dev/null 2>&1; then
+                BASE_BRANCH="master"
+            elif [[ "$BASE_BRANCH" == "master" ]] && git rev-parse --verify "main" >/dev/null 2>&1; then
+                BASE_BRANCH="main"
+            fi
+        fi
+
+        if [[ "$TARGET_REF" =~ ^[0-9]+$ ]]; then
+            REVIEW_BRANCH="jules/review-${TARGET_REF}"
+            if ! git rev-parse --verify "$REVIEW_BRANCH" >/dev/null 2>&1; then
+                "$SCRIPTS_DIR/worktree_gate.sh" "$TARGET_REF" "$BASE_BRANCH" $([[ "$SKIP_CI" == "true" ]] && echo "--skip-ci" || true)
+            fi
+        else
+            REVIEW_BRANCH="$TARGET_REF"
+        fi
+
+        ORIGINAL_DIR="$PWD"
+        if git rev-parse --verify "$REVIEW_BRANCH" >/dev/null 2>&1; then
+            PR_MERGE_WT=$(mktemp -d "/tmp/jules-pr-merge-XXXXXX")
+            cleanup_pr_wt() {
+                cd "$ORIGINAL_DIR" 2>/dev/null || true
+                git worktree remove --force "$PR_MERGE_WT" 2>/dev/null || true
+                rm -rf "$PR_MERGE_WT"
+            }
+            trap 'cleanup_pr_wt' EXIT INT TERM
+            git worktree add --detach "$PR_MERGE_WT" "$REVIEW_BRANCH" >/dev/null 2>&1
+            cd "$PR_MERGE_WT"
+            export PYTHONPATH="${PR_MERGE_WT}/src:${PR_MERGE_WT}:${PYTHONPATH:-}"
+            TEST_CMD=""
+            if [[ -f "pyproject.toml" || -f "pytest.ini" || -f "setup.py" || -f "requirements.txt" || -n "$(find . -maxdepth 2 -name 'test_*.py' 2>/dev/null | head -n 1)" || (-d "tests" && -n "$(find tests -name '*.py' 2>/dev/null | head -n 1)") ]]; then
+                if [[ -x "$ORIGINAL_DIR/.venv/bin/pytest" ]]; then
+                    TEST_CMD="$ORIGINAL_DIR/.venv/bin/python -m pytest -q --tb=short"
+                elif python3 -m pytest --version >/dev/null 2>&1; then
+                    TEST_CMD="python3 -m pytest -q --tb=short"
+                elif command -v uv >/dev/null 2>&1 && [[ -f "pyproject.toml" ]]; then
+                    TEST_CMD="uv run pytest -q --tb=short"
+                elif command -v pytest >/dev/null 2>&1 && pytest --version >/dev/null 2>&1; then
+                    TEST_CMD="pytest -q --tb=short"
+                else
+                    TEST_CMD="python3 -m unittest discover -s . -p 'test_*.py'"
+                fi
+            elif [[ -f "package.json" ]] && grep -q '"test":' package.json; then
+                TEST_CMD="npm test"
+            elif [[ -f "Cargo.toml" ]]; then
+                TEST_CMD="cargo test"
+            elif [[ -f "go.mod" ]]; then
+                TEST_CMD="go test ./..."
+            fi
+            if [[ -n "${JULES_GATE_TEST_CMD:-}" ]]; then
+                TEST_CMD="$JULES_GATE_TEST_CMD"
+            fi
+            if [[ -n "$TEST_CMD" ]]; then
+                echo "==> [pr-merge] Verifying local tests on $REVIEW_BRANCH: $TEST_CMD"
+                TEST_LOG=$(mktemp "/tmp/jules-pr-test-XXXXXX")
+                if $TEST_CMD > "$TEST_LOG" 2>&1; then
+                    echo "✅ Local tests passed on $REVIEW_BRANCH!"
+                    tail -n 3 "$TEST_LOG" | grep -E "passed|skipped|warning" || true
+                    rm -f "$TEST_LOG"
+                else
+                    echo "❌ Local tests failed on $REVIEW_BRANCH. Aborting pr-merge."
+                    tail -n 40 "$TEST_LOG"
+                    rm -f "$TEST_LOG"
+                    exit 3
+                fi
+            fi
+            cd "$ORIGINAL_DIR"
+            trap - EXIT INT TERM
+            cleanup_pr_wt
+        fi
+
+        resolve_gh_token
+        echo "==> Pushing updates for $REVIEW_BRANCH..."
+        git push origin "$REVIEW_BRANCH" 2>/dev/null || true
+
+        echo "==> Merging Pull Request for $REVIEW_BRANCH into $BASE_BRANCH..."
+        if command -v gh >/dev/null 2>&1 && gh pr merge "$REVIEW_BRANCH" --merge --delete-branch 2>/dev/null; then
+            echo "✅ Merged PR via GitHub CLI and deleted remote branch $REVIEW_BRANCH."
+            git checkout "$BASE_BRANCH"
+            git pull origin "$BASE_BRANCH" 2>/dev/null || true
+            git branch -D "$REVIEW_BRANCH" 2>/dev/null || true
+        else
+            echo "==> Falling back to local --no-ff merge and push into $BASE_BRANCH..."
+            git checkout "$BASE_BRANCH"
+            git pull origin "$BASE_BRANCH" 2>/dev/null || true
+            MERGE_MSG="merge(jules): merge $REVIEW_BRANCH into $BASE_BRANCH"
+            if [[ "$SKIP_CI" == "true" ]]; then
+                MERGE_MSG="$MERGE_MSG [skip ci]"
+            fi
+            git merge --no-ff "$REVIEW_BRANCH" -m "$MERGE_MSG"
+            git push origin "$BASE_BRANCH" 2>/dev/null || true
+            git branch -d "$REVIEW_BRANCH" 2>/dev/null || true
+            git push origin --delete "$REVIEW_BRANCH" 2>/dev/null || true
+            echo "✅ Merged $REVIEW_BRANCH into $BASE_BRANCH locally and pushed to origin."
+        fi
+        ;;
+    review-branch|review-pr)
+        TARGET_REF="${1:-}"
+        if [[ -z "$TARGET_REF" ]]; then
+            echo "Usage: jules-gate review-branch <branch_or_session_id> [base_branch] [--repo <owner/repo>]"
+            exit 1
+        fi
+        shift
+        BASE_BRANCH=""
+        REPO=""
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --repo)
+                    REPO="$2"
+                    shift 2
+                    ;;
+                *)
+                    if [[ -z "$BASE_BRANCH" ]]; then
+                        BASE_BRANCH="$1"
+                    fi
+                    shift
+                    ;;
+            esac
+        done
+        BASE_BRANCH="${BASE_BRANCH:-$(git branch --show-current 2>/dev/null || echo 'main')}"
+        if ! git rev-parse --verify "$BASE_BRANCH" >/dev/null 2>&1; then
+            if [[ "$BASE_BRANCH" == "main" ]] && git rev-parse --verify "master" >/dev/null 2>&1; then
+                BASE_BRANCH="master"
+            elif [[ "$BASE_BRANCH" == "master" ]] && git rev-parse --verify "main" >/dev/null 2>&1; then
+                BASE_BRANCH="main"
+            fi
+        fi
+        if [[ "$TARGET_REF" =~ ^[0-9]+$ ]]; then
+            REVIEW_BRANCH="jules/review-${TARGET_REF}"
+        else
+            REVIEW_BRANCH="$TARGET_REF"
+        fi
+        SAFE_NAME=$(echo "$REVIEW_BRANCH" | sed -E 's#[^A-Za-z0-9_-]#_#g')
+        if [[ -z "$REPO" ]]; then
+            REMOTE_URL=$(git remote get-url origin 2>/dev/null || true)
+            if [[ -n "$REMOTE_URL" ]]; then
+                REPO=$(echo "$REMOTE_URL" | sed -E 's#.*github\.com[:/]([^/]+/[^/.]+)(\.git)?$#\1#' || true)
+            fi
+        fi
+        mkdir -p .jules
+        DIFF_CONTENT=$(git diff "$BASE_BRANCH...$REVIEW_BRANCH" 2>/dev/null || true)
+        PROMPT_FILE=".jules/review_prompt_${SAFE_NAME}.md"
+        cat << EOF > "$PROMPT_FILE"
+### Task: EULIS Senior Code Review & Security Audit of Branch $REVIEW_BRANCH
+
+Please perform an in-depth senior engineering review of the branch changes relative to \`$BASE_BRANCH\`.
+
+#### 1. Review Criteria:
+1. Concurrency, State & Race Conditions
+2. Boundary Conditions, Error Handling & Edge Cases
+3. Security, Injection & Secret Hygiene
+4. Test Coverage & Isolated Local Execution Completeness
+
+#### 2. Deliverables:
+- Author a detailed review proposal in \`docs/reviews/review_${SAFE_NAME}.md\`.
+- Apply any recommended code or test fixes directly.
+- Finalize your response directly with a summary without asking open-ended questions so the session cleanly transitions to Completed.
+
+#### 3. Branch Diff (\`$BASE_BRANCH...$REVIEW_BRANCH\`):
+\`\`\`diff
+$DIFF_CONTENT
+\`\`\`
+EOF
+        echo "📄 Generated review prompt at $PROMPT_FILE (target report: docs/reviews/review_${SAFE_NAME}.md)"
+        if command -v jules >/dev/null 2>&1 && [[ -n "$REPO" && "${JULES_GATE_DRY_RUN:-}" != "1" ]]; then
+            echo "==> Dispatching EULIS branch review to $REPO..."
+            jules remote new --repo "$REPO" < "$PROMPT_FILE"
+        else
+            echo "💡 Dispatch with: jules remote new --repo <owner/repo> < $PROMPT_FILE"
+        fi
         ;;
     lint|check)
         REPO="${1:-}"
