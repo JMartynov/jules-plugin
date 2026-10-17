@@ -117,6 +117,16 @@ def make_request(path, method="GET", payload=None):
                 content = resp.read().decode("utf-8")
                 return json.loads(content) if content else {}
         except urllib.error.HTTPError as e:
+            if e.code == 401 and attempt == 0:
+                try:
+                    subprocess.run(["jules", "remote", "list", "--repo"], capture_output=True, timeout=10)
+                    token = get_oauth_token()
+                    if token:
+                        headers["Authorization"] = f"Bearer {token}"
+                        req = urllib.request.Request(url, data=data, headers=headers, method=method)
+                        continue
+                except Exception:
+                    pass
             if e.code in (429, 500, 502, 503, 504) and attempt < max_retries:
                 delay = min(max_delay, base_delay * (2 ** attempt))
                 jitter = random.uniform(0, 0.1 * delay)
@@ -136,34 +146,119 @@ def make_request(path, method="GET", payload=None):
                 raise
 
 def inspect_session(session_id):
-    """Inspect session activity stream and return interactive question if present."""
+    """Inspect session activity stream and return rich operational status, interactive questions, failure details, patches, and stall detection."""
     path = f"tasks/{session_id}"
     res = make_request(path, method="GET")
     task = res.get("task", res)
     steps = task.get("activitySteps", [])
 
+    raw_status = task.get("taskStatus")
+    swebot_status = task.get("swebotTaskStatus")
+
     is_interactive = False
     latest_question = ""
     step_id = ""
 
+    failure_type = None
+    failure_message = None
+    is_suspended = False
+
     answered = False
     for step in reversed(steps):
+        agent_act = step.get("agentActivity", {})
         if step.get("userActivity"):
-            # The user (or jules-gate interact) already replied after the latest agent message.
             answered = True
             continue
-        agent_msg = step.get("agentActivity", {}).get("agentMessaged", {})
-        if agent_msg:
+
+        if not failure_type and "taskFailed" in agent_act:
+            failed_info = agent_act["taskFailed"]
+            failure_type = failed_info.get("failureType", "FAILURE_TYPE_UNSPECIFIED")
+            failure_message = failed_info.get("userVisibleFailureMessage", "")
+
+        if not is_suspended and "taskSuspended" in agent_act:
+            is_suspended = True
+
+        agent_msg = agent_act.get("agentMessaged", {})
+        if agent_msg and not latest_question:
             is_interactive = agent_msg.get("requiresUserResponse", False) and not answered
             latest_question = agent_msg.get("text", "")
             step_id = step.get("id", "")
-            break
+
+    # Extract patch information
+    patch_files = []
+    top_patch = task.get("patch", "")
+    if top_patch:
+        for line in top_patch.splitlines():
+            if line.startswith("diff --git a/"):
+                parts = line.split(" ")
+                if len(parts) >= 4:
+                    fname = parts[3].lstrip("b/")
+                    if fname not in patch_files:
+                        patch_files.append(fname)
+    if not patch_files:
+        for step in reversed(steps):
+            prog = step.get("agentActivity", {}).get("planStepProgressUpdated", {})
+            cum_patch = prog.get("cumulativePatch", {})
+            for diff_v2 in cum_patch.get("fileDiffsV2", []):
+                fname = diff_v2.get("fileAfter", {}).get("path") or diff_v2.get("fileBefore", {}).get("path")
+                if fname and fname not in patch_files:
+                    patch_files.append(fname)
+            if patch_files:
+                break
+
+    # Stall detection
+    is_stalled = False
+    stall_minutes = 0
+    if steps:
+        latest_step = steps[-1]
+        create_time_str = latest_step.get("createdAt") or latest_step.get("createTime")
+        if create_time_str:
+            try:
+                from datetime import datetime, timezone
+                # Trim sub-microsecond precision (e.g. 9 digits to 6 digits) for datetime.fromisoformat
+                clean_ts = re.sub(r'(\.\d{6})\d+Z?', r'\1', create_time_str).rstrip("Z")
+                step_dt = datetime.fromisoformat(clean_ts).replace(tzinfo=timezone.utc)
+                now_dt = datetime.now(timezone.utc)
+                elapsed_secs = (now_dt - step_dt).total_seconds()
+                stall_minutes = max(0, int(elapsed_secs / 60))
+            except Exception:
+                pass
+        is_terminal = str(raw_status).upper() in ("COMPLETED", "FAILED") or bool(failure_type) or is_suspended
+        if not is_terminal and stall_minutes >= 15:
+            is_stalled = True
+
+    # Normalize operational status
+    if is_interactive:
+        normalized_status = "AWAITING_USER"
+    elif str(raw_status).upper() == "COMPLETED":
+        normalized_status = "COMPLETED"
+    elif str(raw_status).upper() == "FAILED" or failure_type:
+        normalized_status = "FAILED"
+    elif is_suspended:
+        normalized_status = "SUSPENDED"
+    elif is_stalled:
+        normalized_status = "STALLED"
+    elif str(raw_status).upper() in ("PLANNING", "IN_PROGRESS", "ACTIVE"):
+        normalized_status = str(raw_status).upper()
+    else:
+        normalized_status = str(swebot_status or "UNKNOWN")
 
     auto_answerable, suggested_answer = evaluate_auto_answer(latest_question)
 
     return {
         "session_id": session_id,
+        "task_status": normalized_status,
+        "raw_status": raw_status,
+        "swebot_status": swebot_status,
         "is_interactive": is_interactive,
+        "is_suspended": is_suspended,
+        "is_stalled": is_stalled,
+        "stall_minutes": stall_minutes,
+        "failure_type": failure_type,
+        "failure_message": failure_message,
+        "has_patch": len(patch_files) > 0,
+        "patch_files_count": len(patch_files),
+        "patch_files": patch_files,
         "question": latest_question,
         "step_id": step_id,
         "total_steps": len(steps),
@@ -234,9 +329,24 @@ def main():
                 print("==========================================================")
                 print(f" [Jules Gate API] Session Inspection: {session_id}")
                 print("==========================================================")
-                print(f"  Interactive State: {'YES (Awaiting User Response)' if data['is_interactive'] else 'NO'}")
+                print(f"  Operational Status: {data['task_status']}")
+                print(f"  Interactive State:  {'YES (Awaiting User Response)' if data['is_interactive'] else 'NO'}")
                 if data["is_interactive"]:
-                    print(f"  Auto-Answerable:   {'YES (Boilerplate review prompt)' if data['auto_answerable'] else 'NO (Substantive decision)'}")
+                    print(f"  Auto-Answerable:    {'YES (Boilerplate review prompt)' if data['auto_answerable'] else 'NO (Substantive decision)'}")
+                if data["is_suspended"]:
+                    print("  Suspension Status:  YES (DevBox suspended by backend)")
+                if data["is_stalled"]:
+                    print(f"  Stall Detection:    YES (No activity steps for {data['stall_minutes']} minutes!)")
+                if data["failure_type"]:
+                    print(f"  Failure Type:       {data['failure_type']}")
+                    if data["failure_message"]:
+                        print(f"  Failure Message:    {data['failure_message']}")
+                if data["has_patch"]:
+                    print(f"  Cumulative Patch:   YES ({data['patch_files_count']} files modified)")
+                    for pf in data["patch_files"][:5]:
+                        print(f"    - {pf}")
+                    if data["patch_files_count"] > 5:
+                        print(f"    ... and {data['patch_files_count'] - 5} more files")
                 if data["question"]:
                     print("  Jules Question / Prompt:")
                     print("  --------------------------------------------------------")
@@ -245,7 +355,15 @@ def main():
                     print("  --------------------------------------------------------")
                 print(f"  Total Activity Steps: {data['total_steps']}")
                 print("==========================================================")
-            sys.exit(0 if not data["is_interactive"] else 10)
+
+            if data["is_interactive"]:
+                sys.exit(10)
+            elif data["task_status"] == "FAILED":
+                sys.exit(2)
+            elif data["is_stalled"]:
+                sys.exit(12)
+            else:
+                sys.exit(0)
 
         elif cmd == "interact":
             if len(sys.argv) < 4:

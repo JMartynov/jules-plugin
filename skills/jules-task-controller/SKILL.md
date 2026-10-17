@@ -273,12 +273,19 @@ A repair round of a typing task took about 3.7 hours against 26 minutes for the 
 6. **Pick the tool by size.** A small fix (a typing tweak, a config change, a few lines) is done locally. Jules is for well-bounded work with its own tests, such as a new module, a spike or a test suite.
 7. **Add `AGENTS.md` to the repo** (commands, test counts, forbidden paths) and, in the Jules UI, an environment setup script with a snapshot (Configuration, Initial Setup, then "Run and Snapshot").
 8. **Messages sent with `jules-gate interact` carry the prefix `[sent via jules-gate]`** (change it with `JULES_GATE_SENDER_LABEL`, empty turns it off), because Jules shows them as written by the account owner.
+9. **Heavy Dataset & Long Compilation Guard (Cloud VM 80-minute ceiling):** Do not ask Jules to generate or rebuild multi-megabyte datasets (such as `passports.json.gz`, large sqlite DBs, or full web builds) inside the remote Cloud VM. It will hit the platform's ~80-minute execution ceiling and fail abruptly with `FAILURE_TYPE_UNSPECIFIED`. Formulate prompts to write and test code using unit test fixtures or mock samples, delegating full dataset compilation to local machines or CI pipelines. If an infrastructure timeout occurs, check `jules-gate inspect <id>` to see if the cumulative patch is intact and salvage verified changes via `jules-gate verify <id> <base> --allow-failed`.
 
 ## 4. Gated Integration, EULIS Branch Review & Auto-Merge Protocol
 
 ### Strict Sub-Agent Delegation for Local Tests (`jules-gate verify`)
 - Neither the primary orchestrator nor a dispatch worker should run raw test suites in the main context.
 - `jules-gate verify` MUST always be invoked inside an isolated `flash` Verifier Sub-Agent, which sets `PYTHONPATH="${WORKTREE_DIR}/src:${WORKTREE_DIR}"`, auto-detects `$ORIGINAL_DIR/.venv/bin/python -m pytest -q --tb=short` or `uv`, and returns only the concise 1-line pass/fail digest to the parent agent.
+
+### Salvaging Work from Timed Out Cloud Sessions (`--allow-failed`)
+```bash
+jules-gate verify <session_id> [base_branch] --allow-failed
+```
+If a cloud session hits the 80-minute VM timeout or container eviction after authoring code, `--allow-failed` pulls the cumulative patch from AIDA, verifies tests locally in an isolated worktree, and creates `jules/review-<session_id>` if tests pass.
 
 ### CI/CD Suppression During Iterative Development (`--skip-ci`)
 - Pass `--skip-ci` (or export `JULES_GATE_SKIP_CI=1`) to `jules-gate verify`, `jules-gate pr`, and `jules-gate merge` so commits and PR titles include `[skip ci]` and do not trigger redundant GitHub Actions pipelines during iterative development.

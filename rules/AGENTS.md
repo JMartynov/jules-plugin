@@ -68,3 +68,9 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
     * **Serialized Auto-Rebase (`--auto-rebase`):** Slower siblings automatically detect if the base branch has advanced (`git merge-base` != `base head`) and rebase their review branch onto the updated base branch prior to merging, ensuring clean linear history.
     * **Isolated Milestone Streaming:** Each sub-agent streams milestone completion reports directly to the orchestrator as tasks land, providing real-time visibility into wave progress without blocking.
 
+11. **Heavy Dataset & Long Compilation Guard (Cloud VM 80-Minute Ceiling & Patch Salvage):**
+    * **80-Minute Platform Budget:** Google Jules DevBox containers enforce a strict ~80-minute ceiling on total session duration and memory limits. Tasks that require generating or rebuilding multi-megabyte datasets (such as `passports.json.gz`, large database snapshots, or heavy web bundle builds) risk triggering hard container drops (`FAILURE_TYPE_UNSPECIFIED`).
+    * **Unit Test Mocking Mandate:** Prompts formulated for data-heavy repositories MUST instruct Jules not to execute full dataset generation or long-running end-to-end syncs inside the Cloud VM. Jules must write and verify domain logic using unit test fixtures or mock samples, delegating full dataset compilation to local workstations or CI pipelines.
+    * **Patch Salvage Protocol (`--allow-failed`):** If a session terminates due to an infrastructure timeout or container drop, the cumulative code patch is often intact in the AIDA activity log. Operators can inspect the session (`jules-gate inspect <id>`) and salvage verified work locally using `jules-gate verify <id> <base> --allow-failed`.
+
+

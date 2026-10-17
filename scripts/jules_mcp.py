@@ -93,7 +93,8 @@ def handle_tools_list(msg_id, params):
                     "base_branch": {"type": "string"},
                     "sandbox": {"type": "boolean"},
                     "retry_flaky": {"type": "integer"},
-                    "skip_ci": {"type": "boolean"}
+                    "skip_ci": {"type": "boolean"},
+                    "allow_failed": {"type": "boolean"}
                 },
                 "required": ["session_id", "base_branch"]
             }
@@ -107,7 +108,8 @@ def handle_tools_list(msg_id, params):
                     "session_id": {"type": "string"},
                     "base_branch": {"type": "string"},
                     "delete_remote": {"type": "boolean"},
-                    "skip_ci": {"type": "boolean"}
+                    "skip_ci": {"type": "boolean"},
+                    "allow_failed": {"type": "boolean"}
                 },
                 "required": ["session_id", "base_branch"]
             }
@@ -122,7 +124,8 @@ def handle_tools_list(msg_id, params):
                     "base_branch": {"type": "string"},
                     "skip_ci": {"type": "boolean"},
                     "title": {"type": "string"},
-                    "auto_merge": {"type": "boolean"}
+                    "auto_merge": {"type": "boolean"},
+                    "allow_failed": {"type": "boolean"}
                 },
                 "required": ["session_id"]
             }
@@ -232,12 +235,16 @@ def handle_tools_call(msg_id, params):
             cmd.extend(["--retry-flaky", str(args["retry_flaky"])])
         if args.get("skip_ci"):
             cmd.append("--skip-ci")
+        if args.get("allow_failed"):
+            cmd.append("--allow-failed")
     elif name == "jules_merge":
         cmd = [jules_gate, "merge", args["session_id"], args["base_branch"]]
         if args.get("delete_remote"):
             cmd.append("--delete-remote")
         if args.get("skip_ci"):
             cmd.append("--skip-ci")
+        if args.get("allow_failed"):
+            cmd.append("--allow-failed")
     elif name == "jules_pr":
         cmd = [jules_gate, "pr", args["session_id"]]
         if args.get("base_branch"):
@@ -248,6 +255,8 @@ def handle_tools_call(msg_id, params):
             cmd.extend(["--title", args["title"]])
         if args.get("auto_merge"):
             cmd.append("--auto-merge")
+        if args.get("allow_failed"):
+            cmd.append("--allow-failed")
     elif name == "jules_pr_merge":
         cmd = [jules_gate, "pr-merge", args["branch_or_session_id"]]
         if args.get("base_branch"):

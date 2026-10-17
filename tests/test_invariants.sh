@@ -888,6 +888,42 @@ git init "$LOCK_TEST_DIR" >/dev/null 2>&1
 rm -rf "$LOCK_TEST_DIR"
 log_pass "with_git_lock atomic mutex directory logic verified"
 
+# ------------------------------------------------------------
+# INVARIANT 14: Cloud VM Quota Guard, Stall Detection & Patch Salvage
+# ------------------------------------------------------------
+echo ""
+echo "--- [Invariant 14: Cloud VM Quota Guard, Stall Detection & Patch Salvage] ---"
+
+if grep -q "is_stalled" "$SCRIPTS_DIR/jules_api.py" && grep -q "failure_type" "$SCRIPTS_DIR/jules_api.py"; then
+    log_pass "scripts/jules_api.py implements rich status, stall detection, and failure extraction"
+else
+    log_fail "scripts/jules_api.py missing stall detection or failure extraction"
+fi
+
+if grep -q "STALL DETECTED" "$SCRIPTS_DIR/jules_poll_wait.sh" && grep -q "Work salvageable" "$SCRIPTS_DIR/jules_poll_wait.sh"; then
+    log_pass "scripts/jules_poll_wait.sh detects stalled sessions and reports salvageable patches"
+else
+    log_fail "scripts/jules_poll_wait.sh missing stall detection or salvageable patch reporting"
+fi
+
+if grep -q -- "--allow-failed" "$SCRIPTS_DIR/worktree_gate.sh" && grep -q -- "--allow-failed" "$GATE_BIN"; then
+    log_pass "worktree_gate.sh and bin/jules-gate support --allow-failed patch salvage flag"
+else
+    log_fail "worktree_gate.sh or bin/jules-gate missing --allow-failed support"
+fi
+
+if grep -q "Heavy Dataset & Long Compilation Guard" "$PLUGIN_ROOT/rules/AGENTS.md" && grep -q "allow-failed" "$PLUGIN_ROOT/rules/AGENTS.md"; then
+    log_pass "rules/AGENTS.md documents Rule 11 Heavy Dataset Guard and patch salvage protocol"
+else
+    log_fail "rules/AGENTS.md missing Rule 11 Heavy Dataset Guard"
+fi
+
+if grep -q "allow_failed" "$SCRIPTS_DIR/jules_mcp.py"; then
+    log_pass "scripts/jules_mcp.py exposes allow_failed in MCP tools"
+else
+    log_fail "scripts/jules_mcp.py missing allow_failed"
+fi
+
 echo ""
 echo "=========================================================="
 echo " INVARIANT TEST SUMMARY:"

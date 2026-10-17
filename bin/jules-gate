@@ -149,6 +149,10 @@ case "$CMD" in
                     WORKTREE_ARGS="$WORKTREE_ARGS --skip-ci"
                     shift
                     ;;
+                --allow-failed)
+                    WORKTREE_ARGS="$WORKTREE_ARGS --allow-failed"
+                    shift
+                    ;;
                 *)
                     if [[ -z "$BASE_BRANCH" ]]; then
                         BASE_BRANCH="$1"
@@ -194,6 +198,10 @@ case "$CMD" in
                 --skip-ci)
                     SKIP_CI=true
                     WORKTREE_ARGS="$WORKTREE_ARGS --skip-ci"
+                    shift
+                    ;;
+                --allow-failed)
+                    WORKTREE_ARGS="$WORKTREE_ARGS --allow-failed"
                     shift
                     ;;
                 *)
@@ -299,6 +307,10 @@ case "$CMD" in
                     ;;
                 --auto-merge)
                     AUTO_MERGE=true
+                    shift
+                    ;;
+                --allow-failed)
+                    WORKTREE_ARGS="$WORKTREE_ARGS --allow-failed"
                     shift
                     ;;
                 *)

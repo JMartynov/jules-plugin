@@ -86,63 +86,68 @@ while true; do
             continue
         fi
 
-        # Find status of session in list output
+        # Authoritative inspection via jules_api.py
+        API_SCRIPT="$SCRIPT_DIR/jules_api.py"
+        INSPECT_JSON=""
+        if [[ -f "$API_SCRIPT" ]]; then
+            INSPECT_JSON=$(run_bounded python3 "$API_SCRIPT" inspect "$SID" --json 2>/dev/null || true)
+        fi
+
+        OP_STATUS=""
+        IS_INTERACTIVE=false
+        IS_SUSPENDED=false
+        IS_STALLED=false
+        STALL_MINS=0
+        HAS_PATCH=false
+        PATCH_COUNT=0
+        FAIL_MSG=""
+        FAIL_TYPE=""
+        QUESTION=""
+        AUTO_ANSWERABLE=false
+
+        if [[ -n "$INSPECT_JSON" ]]; then
+            OP_STATUS=$(echo "$INSPECT_JSON" | grep -o '"task_status": *"[^"]*"' | head -n 1 | sed -E 's/"task_status": *"([^"]*)"/\1/' || true)
+            if echo "$INSPECT_JSON" | grep -q '"is_interactive": *true'; then IS_INTERACTIVE=true; fi
+            if echo "$INSPECT_JSON" | grep -q '"is_suspended": *true'; then IS_SUSPENDED=true; fi
+            if echo "$INSPECT_JSON" | grep -q '"is_stalled": *true'; then IS_STALLED=true; fi
+            if echo "$INSPECT_JSON" | grep -q '"has_patch": *true'; then HAS_PATCH=true; fi
+            PATCH_COUNT=$(echo "$INSPECT_JSON" | grep -o '"patch_files_count": *[0-9]*' | head -n 1 | grep -o '[0-9]*' || echo "0")
+            STALL_MINS=$(echo "$INSPECT_JSON" | grep -o '"stall_minutes": *[0-9]*' | head -n 1 | grep -o '[0-9]*' || echo "0")
+            FAIL_MSG=$(echo "$INSPECT_JSON" | grep -o '"failure_message": *"[^"]*"' | head -n 1 | sed -E 's/"failure_message": *"([^"]*)"/\1/' || true)
+            FAIL_TYPE=$(echo "$INSPECT_JSON" | grep -o '"failure_type": *"[^"]*"' | head -n 1 | sed -E 's/"failure_type": *"([^"]*)"/\1/' || true)
+            QUESTION=$(echo "$INSPECT_JSON" | grep -o '"question": *"[^"]*"' | head -n 1 | sed -E 's/"question": *"([^"]*)"/\1/' || true)
+            if echo "$INSPECT_JSON" | grep -q '"auto_answerable": *true'; then AUTO_ANSWERABLE=true; fi
+        fi
+
+        # Fallback to scraping jules remote list if API inspection didn't return a status
         STATUS_LINE=$(echo "$LIST_OUTPUT" | grep -E "\b$SID\b" || true)
-        if [[ -z "$STATUS_LINE" ]]; then
-            ALL_DONE=false
-            continue
+        if [[ -z "$OP_STATUS" && -n "$STATUS_LINE" ]]; then
+            if echo "$STATUS_LINE" | grep -qi "Completed"; then OP_STATUS="COMPLETED"; fi
+            if echo "$STATUS_LINE" | grep -qi "Failed"; then OP_STATUS="FAILED"; fi
+            if echo "$STATUS_LINE" | grep -qi "Awaiting User"; then IS_INTERACTIVE=true; fi
         fi
 
-        # The list status can lag after an answer (still showing "Awaiting User" for 30-90s),
-        # or it can fail to show "Awaiting User" (showing Paused or In Progress instead).
-        # Always verify against the authoritative activity stream (inspect) for unfinished sessions.
-        IS_AWAITING=false
-        if ! echo "$STATUS_LINE" | grep -qiE "Completed|Failed"; then
-            INSPECTED=false
-            if [[ -f "$SCRIPT_DIR/jules_api.py" ]]; then
-                INSPECT_JSON=$(run_bounded python3 "$SCRIPT_DIR/jules_api.py" inspect "$SID" --json 2>/dev/null || true)
-                if echo "$INSPECT_JSON" | grep -q '"is_interactive": *true'; then
-                    IS_AWAITING=true
-                    INSPECTED=true
-                elif echo "$INSPECT_JSON" | grep -q '"is_interactive": *false'; then
-                    # The activity stream shows the question was already answered (or not interactive),
-                    # even if the session list is still lagging and shows "Awaiting User".
-                    IS_AWAITING=false
-                    INSPECTED=true
-                fi
-            fi
-            if [[ "$INSPECTED" == "false" ]] && echo "$STATUS_LINE" | grep -qiE "Awaiting User"; then
-                IS_AWAITING=true
-            fi
-        fi
-
-        if echo "$STATUS_LINE" | grep -qi "Completed"; then
+        if [[ "$OP_STATUS" == "COMPLETED" ]]; then
             echo "✅ [DONE: Completed] Session $SID finalized remotely."
             echo "   🌐 Web Session: https://jules.google.com/task/$SID"
             COMPLETED_SESSIONS="${COMPLETED_SESSIONS}${SID} "
-        elif [[ "$IS_AWAITING" == "true" ]]; then
+        elif [[ "$IS_INTERACTIVE" == "true" ]]; then
             echo "⚡ [INTERACTIVE: Awaiting User Feedback] Session $SID requires user response!"
             echo "   🌐 Web Session: https://jules.google.com/task/$SID"
-            API_SCRIPT="$SCRIPT_DIR/jules_api.py"
             AUTO_RESOLVED=false
-            if [[ -x "$API_SCRIPT" ]]; then
-                if [[ "$INTERACTIVE_MODE" == "true" ]]; then
-                    echo "   🤖 [--interactive] Evaluating auto-answer heuristics for session $SID..."
-                    if run_bounded python3 "$API_SCRIPT" auto-answer "$SID" 2>&1; then
-                        echo "   ✅ Automatically resolved boilerplate prompt. Resuming token-free watcher..."
-                        AUTO_RESOLVED=true
-                        sleep 10
-                    else
-                        echo "   ⚡ Prompt is substantive: requires manual or escalated decision."
-                    fi
+            if [[ -x "$API_SCRIPT" && "$INTERACTIVE_MODE" == "true" && "$AUTO_ANSWERABLE" == "true" ]]; then
+                echo "   🤖 [--interactive] Evaluating auto-answer heuristics for session $SID..."
+                if run_bounded python3 "$API_SCRIPT" auto-answer "$SID" 2>&1; then
+                    echo "   ✅ Automatically resolved boilerplate prompt. Resuming token-free watcher..."
+                    AUTO_RESOLVED=true
+                    sleep 10
+                else
+                    echo "   ⚡ Prompt is substantive: requires manual or escalated decision."
                 fi
-                if [[ "$AUTO_RESOLVED" == "false" ]]; then
-                    INSPECT_JSON=$(run_bounded python3 "$API_SCRIPT" inspect "$SID" --json 2>/dev/null || true)
-                    QUESTION=$(echo "$INSPECT_JSON" | grep -o '"question": *"[^"]*"' | sed -E 's/"question": *"([^"]*)"/\1/' || true)
-                    if [[ -n "$QUESTION" ]]; then
-                        echo "   ❓ Jules Question: $QUESTION"
-                    fi
-                fi
+            fi
+
+            if [[ "$AUTO_RESOLVED" == "false" && -n "$QUESTION" ]]; then
+                echo "   ❓ Jules Question: $QUESTION"
             fi
 
             if [[ "$AUTO_RESOLVED" == "true" ]]; then
@@ -152,10 +157,37 @@ while true; do
                 echo "   💡 Action: Use 'jules-gate interact $SID \"<answer>\"' to unblock Jules."
                 AWAITING_FEEDBACK_SESSIONS="${AWAITING_FEEDBACK_SESSIONS}${SID} "
             fi
-        elif echo "$STATUS_LINE" | grep -qi "Failed"; then
+        elif [[ "$OP_STATUS" == "FAILED" ]]; then
             echo "❌ [FAILED] Session $SID failed remotely!"
+            if [[ -n "$FAIL_MSG" || -n "$FAIL_TYPE" ]]; then
+                echo "   Reason: ${FAIL_TYPE:-ERROR} - ${FAIL_MSG:-Unspecified failure}"
+            fi
             echo "   🌐 Web Session: https://jules.google.com/task/$SID"
+            if [[ "$HAS_PATCH" == "true" && "$PATCH_COUNT" -gt 0 ]]; then
+                echo "   💡 Work salvageable: Cumulative patch contains changes for $PATCH_COUNT files!"
+                echo "      Run 'jules-gate verify $SID <base> --allow-failed' or 'jules remote pull --session $SID' to inspect work."
+            fi
             FAILED_SESSIONS="${FAILED_SESSIONS}${SID} "
+        elif [[ "$IS_SUSPENDED" == "true" ]]; then
+            echo "⚠️  [SUSPENDED] Session $SID DevBox was suspended by cloud backend."
+            echo "   🌐 Web Session: https://jules.google.com/task/$SID"
+            if [[ "$HAS_PATCH" == "true" && "$PATCH_COUNT" -gt 0 ]]; then
+                echo "   💡 Work salvageable: Cumulative patch contains changes for $PATCH_COUNT files!"
+                echo "      Run 'jules-gate verify $SID <base> --allow-failed' to salvage verified work."
+            fi
+            FAILED_SESSIONS="${FAILED_SESSIONS}${SID} "
+        elif [[ "$IS_STALLED" == "true" ]]; then
+            echo "⚠️  [STALL DETECTED] Session $SID has shown no activity for $STALL_MINS minutes!"
+            echo "   Cloud DevBox may be deadlocked, running heavy dataset compilation, or killed."
+            echo "   🌐 Web Session: https://jules.google.com/task/$SID"
+            if [[ "$STALL_MINS" -ge 45 ]]; then
+                echo "   ⚡ [WATCHDOG AUTO-HALT] Session stalled for >= 45m. Halting watcher to prevent infinite wait."
+                FAILED_SESSIONS="${FAILED_SESSIONS}${SID} "
+            else
+                ALL_DONE=false
+            fi
+        elif [[ -z "$OP_STATUS" && -z "$STATUS_LINE" ]]; then
+            ALL_DONE=false
         else
             ALL_DONE=false
         fi

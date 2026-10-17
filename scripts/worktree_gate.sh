@@ -22,6 +22,10 @@ SKIP_CI=false
 if [[ "${JULES_GATE_SKIP_CI:-}" == "1" ]]; then
     SKIP_CI=true
 fi
+ALLOW_FAILED=false
+if [[ "${JULES_GATE_ALLOW_FAILED:-}" == "1" ]]; then
+    ALLOW_FAILED=true
+fi
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -35,6 +39,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-ci)
             SKIP_CI=true
+            shift
+            ;;
+        --allow-failed)
+            ALLOW_FAILED=true
             shift
             ;;
         *)
@@ -272,6 +280,9 @@ REPO_NAME=$(git config --get remote.origin.url 2>/dev/null || basename "$(pwd)")
 echo "$TIMESTAMP|$SESSION_ID|$REPO_NAME|verified|$LINES_ADDED|$LINES_REMOVED|$ESTIMATED_TOKENS" >> "$TELEMETRY_DIR/telemetry.log" 2>/dev/null || true
 
 COMMIT_MSG="jules($SESSION_ID): verified changes applied from remote session"
+if [[ "$ALLOW_FAILED" == "true" ]]; then
+    COMMIT_MSG="jules($SESSION_ID): verified changes applied from remote session (salvaged from failed run)"
+fi
 if [[ "$SKIP_CI" == "true" ]]; then
     COMMIT_MSG="$COMMIT_MSG [skip ci]"
 fi
