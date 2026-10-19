@@ -211,14 +211,28 @@ def handle_tools_list(msg_id, params):
         },
         {
             "name": "jules_workflow_run",
-            "description": "Executes a DAG task workflow definition file with conditional task order execution.",
+            "description": "Executes workflow DAG with parallel worker pooling.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "file_path": {"type": "string", "description": "Path to YAML or JSON workflow definition file"},
-                    "dry_run": {"type": "boolean", "description": "Simulate DAG traversal without executing remote Jules sessions"},
-                    "parallel": {"type": "integer", "description": "Max parallel tasks within an execution wave (default 4)"},
-                    "json_output": {"type": "boolean", "description": "Output workflow summary in JSON"}
+                    "file_path": {"type": "string"},
+                    "dry_run": {"type": "boolean"},
+                    "parallel": {"type": "integer"},
+                    "json_output": {"type": "boolean"}
+                },
+                "required": ["file_path"]
+            }
+        },
+        {
+            "name": "jules_workflow_graph",
+            "description": "Generate visual DAG graph representation of a workflow.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string"},
+                    "format": {"type": "string"},
+                    "output_file": {"type": "string"},
+                    "state_file": {"type": "string"}
                 },
                 "required": ["file_path"]
             }
@@ -313,6 +327,14 @@ def handle_tools_call(msg_id, params):
             cmd.extend(["--parallel", str(args["parallel"])])
         if args.get("json_output"):
             cmd.append("--json")
+    elif name == "jules_workflow_graph":
+        cmd = ["python3", workflow_engine, "graph", args["file_path"]]
+        if args.get("format"):
+            cmd.extend(["--format", args["format"]])
+        if args.get("output_file"):
+            cmd.extend(["--output", args["output_file"]])
+        if args.get("state_file"):
+            cmd.extend(["--state-file", args["state_file"]])
     else:
         send_response({
             "jsonrpc": "2.0",

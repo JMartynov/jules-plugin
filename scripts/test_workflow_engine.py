@@ -179,5 +179,90 @@ class TestWorkflowEngine(unittest.TestCase):
             self.assertEqual(tinfo["status"], "COMPLETED")
             self.assertTrue(tinfo["session_id"].startswith(f"dry-run-{tid}"))
 
+
+
+    def test_state_saving_and_loading(self):
+        spec = {
+            "name": "State Save Load",
+            "repo": "owner/repo",
+            "tasks": [
+                {"id": "t1", "prompt": "p1"},
+                {"id": "t2", "prompt": "p2", "depends_on": ["t1"]}
+            ]
+        }
+        engine1 = DAGWorkflowEngine(spec)
+        engine1.tasks["t1"].status = "COMPLETED"
+        engine1.tasks["t1"].session_id = "111"
+        engine1.tasks["t2"].status = "RUNNING"
+        
+        with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as f:
+            state_file = f.name
+            
+        try:
+            engine1.save_state(state_file)
+            
+            engine2 = DAGWorkflowEngine(spec)
+            engine2.load_state(state_file)
+            
+            self.assertEqual(engine2.tasks["t1"].status, "COMPLETED")
+            self.assertEqual(engine2.tasks["t1"].session_id, "111")
+            self.assertEqual(engine2.tasks["t2"].status, "RUNNING")
+        finally:
+            if os.path.exists(state_file):
+                os.remove(state_file)
+
+    def test_resume_skips_completed(self):
+        spec = {
+            "name": "Resume Test",
+            "repo": "owner/repo",
+            "tasks": [
+                {"id": "t1", "prompt": "p1"},
+                {"id": "t2", "prompt": "p2", "depends_on": ["t1"]}
+            ]
+        }
+        engine = DAGWorkflowEngine(spec)
+        engine.tasks["t1"].status = "COMPLETED"
+        engine.tasks["t1"].session_id = "resume-session"
+        
+        with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as f:
+            state_file = f.name
+            
+        try:
+            engine.save_state(state_file)
+            engine_resume = DAGWorkflowEngine(spec)
+            res = engine_resume.execute(dry_run=True, resume=True, state_file=state_file)
+            
+            self.assertEqual(res["tasks"]["t1"]["status"], "COMPLETED")
+            self.assertEqual(res["tasks"]["t1"]["session_id"], "resume-session")
+            self.assertEqual(res["tasks"]["t2"]["status"], "COMPLETED")
+            self.assertTrue(res["tasks"]["t2"]["session_id"].startswith("dry-run-t2"))
+        finally:
+            if os.path.exists(state_file):
+                os.remove(state_file)
+
+    def test_graph_generation(self):
+        spec = {
+            "name": "Graph Test",
+            "repo": "owner/repo",
+            "tasks": [
+                {"id": "t1", "prompt": "p1"},
+                {"id": "t2", "prompt": "p2", "depends_on": ["t1"], "condition": "on_failure"}
+            ]
+        }
+        engine = DAGWorkflowEngine(spec)
+        engine.tasks["t1"].status = "FAILED"
+        
+        mermaid = engine.generate_graph(fmt="mermaid")
+        self.assertIn("t1 -->|on_failure| t2", mermaid)
+        self.assertIn("style t1 fill:#f8d7da,stroke:#dc3545", mermaid)
+        
+        ascii_graph = engine.generate_graph(fmt="ascii")
+        self.assertIn("Workflow: Graph Test", ascii_graph)
+        self.assertIn("[❌] t1", ascii_graph)
+        
+        html_graph = engine.generate_graph(fmt="html")
+        self.assertIn("<!DOCTYPE html>", html_graph)
+        self.assertIn("t1 -->|on_failure| t2", html_graph)
+
 if __name__ == '__main__':
     unittest.main()

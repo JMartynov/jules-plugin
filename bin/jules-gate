@@ -41,7 +41,7 @@ Commands:
   close [session_id]                     Open Jules session to close it.
   reply [session_id] [file_or_msg]       Copy failure trace and open Jules session for in-VM repair.
   web [session_id]                       Open Jules session or dashboard in the default browser.
-  workflow <validate|run|waves> <file> [options] Validate or execute DAG task workflows.
+  workflow <validate|run|waves|graph> <file> [options] Validate, execute, or visualize DAG task workflows (supports --resume).
   ps [flags]                             List remote Jules sessions and statuses.
   status                                 Check and display plugin version, scripts, and Jules CLI status.
   help                                   Show this help message.
