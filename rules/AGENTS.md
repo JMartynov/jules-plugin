@@ -81,7 +81,7 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
       * `on_failure`: Task executes only if at least one prerequisite failed (ideal for diagnostic reporting and rollback steps).
       * `any_success`: Task executes if at least one prerequisite succeeded.
       * `always`: Task executes unconditionally once all prerequisites have terminated regardless of their exit status (ideal for teardown and milestone notifications).
-    * **Dynamic Parameter & Context Interpolation:** Prompts and configurations support dynamic parameter passing: `${tasks.<task_id>.session_id}`, `${tasks.<task_id>.branch}`, `${workflow.vars.<key>}`, and `${env.<VAR>}`.
-    * **CLI & MCP Tooling:** Workflows can be validated via `jules-gate workflow validate <file>` and executed via `jules-gate workflow run <file> [--dry-run] [--parallel N] [--json]`, or via MCP tools `jules_workflow_validate` and `jules_workflow_run`.
+    * **CLI & MCP Tooling:** Workflows can be validated via `jules-gate workflow validate <file>`, visualized via `jules-gate workflow graph <file> [--format mermaid|ascii|html] [--output <file>]`, and executed via `jules-gate workflow run <file> [--dry-run] [--parallel N] [--json] [--resume] [--state-file <path>]`, or via MCP tools `jules_workflow_validate`, `jules_workflow_run`, and `jules_workflow_graph`.
+    * **State Checkpointing & Resume:** Workflow runs checkpoint execution state to `.jules/workflows/<workflow_name>.state.json` (or custom `--state-file`). Resuming with `--resume` restores task metadata and skips already `COMPLETED`/`SKIPPED` tasks, seamlessly continuing execution along the remaining ready DAG frontier.
 
 

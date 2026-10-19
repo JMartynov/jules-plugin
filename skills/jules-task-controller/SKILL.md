@@ -548,16 +548,26 @@ jules-gate workflow validate workflow.yaml
 # View parallel execution waves
 jules-gate workflow waves workflow.yaml
 
+# Generate visual DAG graph (formats: mermaid, ascii, html)
+jules-gate workflow graph workflow.yaml --format mermaid
+jules-gate workflow graph workflow.yaml --format html --output workflow.html
+jules-gate workflow graph workflow.yaml --format ascii --state-file .jules/workflows/my-wf.state.json
+
 # Dry-run execution (simulates DAG traversal without cloud calls)
 jules-gate workflow run workflow.yaml --dry-run
 
 # Live workflow execution with parallel concurrency
 jules-gate workflow run workflow.yaml --parallel 4 --json
+
+# Resume interrupted workflow from saved checkpoint state
+jules-gate workflow run workflow.yaml --resume
+jules-gate workflow run workflow.yaml --resume --state-file .jules/workflows/custom.state.json
 ```
 
 MCP Tools available in Claude Desktop and Antigravity:
 - `jules_workflow_validate(file_path)`
-- `jules_workflow_run(file_path, dry_run, parallel, json_output)`
+- `jules_workflow_run(file_path, dry_run, parallel, json_output, resume, state_file)`
+- `jules_workflow_graph(file_path, format, output_file, state_file)`
 
 
 
