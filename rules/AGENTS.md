@@ -73,4 +73,15 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
     * **Unit Test Mocking Mandate:** Prompts formulated for data-heavy repositories MUST instruct Jules not to execute full dataset generation or long-running end-to-end syncs inside the Cloud VM. Jules must write and verify domain logic using unit test fixtures or mock samples, delegating full dataset compilation to local workstations or CI pipelines.
     * **Patch Salvage Protocol (`--allow-failed`):** If a session terminates due to an infrastructure timeout or container drop, the cumulative code patch is often intact in the AIDA activity log. Operators can inspect the session (`jules-gate inspect <id>`) and salvage verified work locally using `jules-gate verify <id> <base> --allow-failed`.
 
+12. **DAG Task Orchestration & Conditional Execution Engine (v3.4.0):**
+    * **Graph-Based Task Ordering:** When tasks possess complex dependencies or ordering constraints (e.g., Task C requires Task A to pass, or Task D is a cleanup/diagnostic task running on failure), encode the pipeline as a Directed Acyclic Graph (DAG) in YAML or JSON.
+    * **Standard Topological Sorting (`graphlib.TopologicalSorter`):** DAGs are resolved using Python's native `graphlib.TopologicalSorter`, ensuring optimal wave grouping, cycle detection, and dynamic execution frontiers.
+    * **Conditional Execution Policies:**
+      * `on_success` (default): Task executes only if all prerequisite tasks completed successfully. If any prerequisite fails, the task and its strict downstream branch are marked `SKIPPED`.
+      * `on_failure`: Task executes only if at least one prerequisite failed (ideal for diagnostic reporting and rollback steps).
+      * `any_success`: Task executes if at least one prerequisite succeeded.
+      * `always`: Task executes unconditionally once all prerequisites have terminated regardless of their exit status (ideal for teardown and milestone notifications).
+    * **Dynamic Parameter & Context Interpolation:** Prompts and configurations support dynamic parameter passing: `${tasks.<task_id>.session_id}`, `${tasks.<task_id>.branch}`, `${workflow.vars.<key>}`, and `${env.<VAR>}`.
+    * **CLI & MCP Tooling:** Workflows can be validated via `jules-gate workflow validate <file>` and executed via `jules-gate workflow run <file> [--dry-run] [--parallel N] [--json]`, or via MCP tools `jules_workflow_validate` and `jules_workflow_run`.
+
 

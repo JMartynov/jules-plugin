@@ -41,6 +41,7 @@ Commands:
   close [session_id]                     Open Jules session to close it.
   reply [session_id] [file_or_msg]       Copy failure trace and open Jules session for in-VM repair.
   web [session_id]                       Open Jules session or dashboard in the default browser.
+  workflow <validate|run|waves> <file> [options] Validate or execute DAG task workflows.
   ps [flags]                             List remote Jules sessions and statuses.
   status                                 Check and display plugin version, scripts, and Jules CLI status.
   help                                   Show this help message.
@@ -882,6 +883,9 @@ EOF
             exit 1
         fi
         ;;
+    workflow)
+        exec python3 "$SCRIPTS_DIR/workflow_engine.py" "$@"
+        ;;
     status)
         PLUGIN_JSON=""
         if [[ -f "$ROOT_DIR/plugin.json" ]]; then
@@ -897,6 +901,7 @@ EOF
 
         POLL_WAIT_SCRIPT="$SCRIPTS_DIR/jules_poll_wait.sh"
         WORKTREE_GATE_SCRIPT="$SCRIPTS_DIR/worktree_gate.sh"
+        WORKFLOW_ENGINE_SCRIPT="$SCRIPTS_DIR/workflow_engine.py"
 
         echo "Plugin version: $VERSION"
         JULES_CLI="not found in PATH"
@@ -928,6 +933,18 @@ EOF
             fi
         else
             echo "  - $WORKTREE_GATE_SCRIPT: not found"
+            ALL_EXEC=false
+        fi
+
+        if [[ -f "$WORKFLOW_ENGINE_SCRIPT" ]]; then
+            if [[ -x "$WORKFLOW_ENGINE_SCRIPT" ]]; then
+                echo "  - $WORKFLOW_ENGINE_SCRIPT: executable"
+            else
+                echo "  - $WORKFLOW_ENGINE_SCRIPT: not executable"
+                ALL_EXEC=false
+            fi
+        else
+            echo "  - $WORKFLOW_ENGINE_SCRIPT: not found"
             ALL_EXEC=false
         fi
 

@@ -482,6 +482,83 @@ sequenceDiagram
 6. **Strict Prohibition on Manual Gate Bypasses:**  
    Sub-agents must NEVER bypass the verification gate with manual `jules remote pull --apply` or local branch merges when encountering timeouts (code 1) or interactive states (code 10). Any blocked session MUST be escalated via `send_message`.
 
+---
+
+## 7. DAG Task Workflows & Conditional Execution (`jules-gate workflow`)
+
+For complex engineering tasks requiring structured pipelines, multi-step dependencies, or conditional execution, define workflows in YAML or JSON and run them via the DAG engine.
+
+### Workflow Specification Format (YAML or JSON)
+
+```yaml
+name: "full-stack-refactor"
+vars:
+  repo: "owner/repo"
+  base_branch: "master"
+
+tasks:
+  - id: "backend_api"
+    repo: "${workflow.vars.repo}"
+    base_branch: "${workflow.vars.base_branch}"
+    prompt: "Implement backend API v2 endpoints and unit tests."
+    verify: true
+    auto_merge: true
+
+  - id: "frontend_client"
+    repo: "${workflow.vars.repo}"
+    base_branch: "${workflow.vars.base_branch}"
+    depends_on: ["backend_api"]
+    condition: "on_success"
+    prompt: "Update frontend client to consume backend session ${tasks.backend_api.session_id} on branch ${tasks.backend_api.branch}."
+    verify: true
+    auto_merge: true
+
+  - id: "e2e_integration_tests"
+    repo: "${workflow.vars.repo}"
+    base_branch: "${workflow.vars.base_branch}"
+    depends_on: ["frontend_client"]
+    condition: "on_success"
+    prompt: "Author and verify end-to-end integration tests."
+    verify: true
+    auto_merge: true
+
+  - id: "failure_alert"
+    repo: "${workflow.vars.repo}"
+    depends_on: ["backend_api", "frontend_client"]
+    condition: "on_failure"
+    prompt: "Analyze test failures and report diagnostic root causes."
+
+  - id: "notify_slack"
+    depends_on: ["e2e_integration_tests", "failure_alert"]
+    condition: "always"
+    prompt: "Final cleanup and status summary."
+```
+
+### Supported Conditions
+- `on_success` (default): Executes only if all dependencies finished successfully (`status == 'COMPLETED'`). If any dependency failed, this task and downstream branches are marked `SKIPPED`.
+- `on_failure`: Executes only if at least one dependency failed (`status == 'FAILED'`).
+- `any_success`: Executes if at least one dependency completed successfully.
+- `always`: Executes unconditionally once all dependencies finish, regardless of pass or fail.
+
+### CLI & MCP Usage
+```bash
+# Validate workflow DAG and check for cycles
+jules-gate workflow validate workflow.yaml
+
+# View parallel execution waves
+jules-gate workflow waves workflow.yaml
+
+# Dry-run execution (simulates DAG traversal without cloud calls)
+jules-gate workflow run workflow.yaml --dry-run
+
+# Live workflow execution with parallel concurrency
+jules-gate workflow run workflow.yaml --parallel 4 --json
+```
+
+MCP Tools available in Claude Desktop and Antigravity:
+- `jules_workflow_validate(file_path)`
+- `jules_workflow_run(file_path, dry_run, parallel, json_output)`
+
 
 
 

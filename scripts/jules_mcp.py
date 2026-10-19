@@ -197,6 +197,31 @@ def handle_tools_list(msg_id, params):
                 "type": "object",
                 "properties": {}
             }
+        },
+        {
+            "name": "jules_workflow_validate",
+            "description": "Validates a DAG task workflow definition file for cycles and dependency validity.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string", "description": "Path to YAML or JSON workflow definition file"}
+                },
+                "required": ["file_path"]
+            }
+        },
+        {
+            "name": "jules_workflow_run",
+            "description": "Executes a DAG task workflow definition file with conditional task order execution.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string", "description": "Path to YAML or JSON workflow definition file"},
+                    "dry_run": {"type": "boolean", "description": "Simulate DAG traversal without executing remote Jules sessions"},
+                    "parallel": {"type": "integer", "description": "Max parallel tasks within an execution wave (default 4)"},
+                    "json_output": {"type": "boolean", "description": "Output workflow summary in JSON"}
+                },
+                "required": ["file_path"]
+            }
         }
     ]
     send_response({
@@ -219,6 +244,7 @@ def handle_tools_call(msg_id, params):
     jules_api = os.path.join(script_dir, "jules_api.py")
     jules_poll_wait = os.path.join(script_dir, "jules_poll_wait.sh")
     worktree_gate = os.path.join(script_dir, "worktree_gate.sh")
+    workflow_engine = os.path.join(script_dir, "workflow_engine.py")
     
     if name == "jules_dispatch":
         cmd = ["jules", "remote", "new", "--repo", args["repo"]]
@@ -277,6 +303,16 @@ def handle_tools_call(msg_id, params):
         cmd = ["python3", jules_api, "auto-answer", args["session_id"]]
     elif name == "jules_status":
         cmd = [jules_gate, "status"]
+    elif name == "jules_workflow_validate":
+        cmd = ["python3", workflow_engine, "validate", args["file_path"]]
+    elif name == "jules_workflow_run":
+        cmd = ["python3", workflow_engine, "run", args["file_path"]]
+        if args.get("dry_run"):
+            cmd.append("--dry-run")
+        if args.get("parallel"):
+            cmd.extend(["--parallel", str(args["parallel"])])
+        if args.get("json_output"):
+            cmd.append("--json")
     else:
         send_response({
             "jsonrpc": "2.0",
@@ -298,7 +334,7 @@ def handle_tools_call(msg_id, params):
             result = subprocess.run(cmd, input=prompt, capture_output=True, text=True, check=False)
             output = result.stdout + result.stderr
             rc = result.returncode
-        elif progress_token and name in ("jules_wait", "jules_stream", "jules_verify", "jules_pr_merge"):
+        elif progress_token and name in ("jules_wait", "jules_stream", "jules_verify", "jules_pr_merge", "jules_workflow_run"):
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,

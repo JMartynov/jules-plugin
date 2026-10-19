@@ -924,6 +924,44 @@ else
     log_fail "scripts/jules_mcp.py missing allow_failed"
 fi
 
+# ------------------------------------------------------------
+# INVARIANT 15: DAG Task Orchestration Engine & Workflow Subcommands
+# ------------------------------------------------------------
+echo ""
+echo "--- [Invariant 15: DAG Task Orchestration Engine & Workflow Subcommands] ---"
+
+if grep -q "workflow <validate|run|waves>" "$GATE_BIN" && grep -q 'workflow)' "$GATE_BIN"; then
+    log_pass "bin/jules-gate implements and documents workflow subcommand"
+else
+    log_fail "bin/jules-gate missing workflow subcommand dispatch"
+fi
+
+if [[ -x "$SCRIPTS_DIR/workflow_engine.py" ]]; then
+    log_pass "scripts/workflow_engine.py exists and is executable"
+else
+    log_fail "scripts/workflow_engine.py not executable or missing"
+fi
+
+# Run the 8 workflow engine unit tests directly
+WORKFLOW_UNIT_TEST_OUT=$(python3 "$SCRIPTS_DIR/test_workflow_engine.py" 2>&1 || true)
+if echo "$WORKFLOW_UNIT_TEST_OUT" | grep -q "Ran 8 tests" && echo "$WORKFLOW_UNIT_TEST_OUT" | grep -q "OK"; then
+    log_pass "scripts/workflow_engine.py passes all 8 unit tests (DAG cycles, waves, conditions, interpolation, dry-run)"
+else
+    log_fail "scripts/workflow_engine.py unit tests failed: $WORKFLOW_UNIT_TEST_OUT"
+fi
+
+if grep -q "jules_workflow_validate" "$SCRIPTS_DIR/jules_mcp.py" && grep -q "jules_workflow_run" "$SCRIPTS_DIR/jules_mcp.py"; then
+    log_pass "scripts/jules_mcp.py exposes jules_workflow_validate and jules_workflow_run in MCP tools"
+else
+    log_fail "scripts/jules_mcp.py missing workflow tools in MCP"
+fi
+
+if grep -q "DAG Task Orchestration & Conditional Execution Engine" "$PLUGIN_ROOT/rules/AGENTS.md" && grep -q "DAG Task Workflows & Conditional Execution" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md"; then
+    log_pass "rules/AGENTS.md and SKILL.md document DAG task workflow orchestration"
+else
+    log_fail "AGENTS.md or SKILL.md missing DAG task workflow documentation"
+fi
+
 echo ""
 echo "=========================================================="
 echo " INVARIANT TEST SUMMARY:"
