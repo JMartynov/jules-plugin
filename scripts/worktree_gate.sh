@@ -142,7 +142,7 @@ fi
 
 # 4. Apply patch
 echo "==> Applying patch..."
-if ! git apply "$ORIGINAL_DIR/$PATCH_FILE" 2>/dev/null; then
+if ! git apply "$ORIGINAL_DIR/$PATCH_FILE" 2>/dev/null && ! git apply -3 "$ORIGINAL_DIR/$PATCH_FILE" 2>/dev/null; then
     echo "❌ Patch did not apply cleanly to $REVIEW_BRANCH"
     exit 2
 fi
