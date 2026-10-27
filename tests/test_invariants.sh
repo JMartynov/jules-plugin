@@ -835,6 +835,12 @@ else
     log_fail "bin/jules-gate missing pr-merge or review-branch subcommands"
 fi
 
+if grep -q "\-\-wait" "$GATE_BIN" && grep -q "To monitor and retrieve the review findings" "$GATE_BIN"; then
+    log_pass "bin/jules-gate review-branch documents --wait and next-step retrieval guidance"
+else
+    log_fail "bin/jules-gate missing --wait flag or retrieval guidance in review-branch"
+fi
+
 if grep -q "pr-merge" "$PLUGIN_ROOT/rules/AGENTS.md" && grep -q "pr-merge" "$PLUGIN_ROOT/skills/jules-task-controller/SKILL.md"; then
     log_pass "rules/AGENTS.md and SKILL.md document EULIS Branch Review & pr-merge workflow"
 else

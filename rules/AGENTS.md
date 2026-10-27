@@ -59,7 +59,11 @@ This rule is permanently active whenever `jules-plugin` is enabled. It governs h
    * **Per-Task Branch, EULIS Code Review & Auto-Merge Workflow:**
      * Every task must update relevant documentation (`README.md`, `docs/*.md`) alongside code changes.
      * After an implementation branch `jules/review-<impl_id>` passes local tests via `jules-gate verify` and opens a PR via `jules-gate pr --skip-ci`, dispatch a **Mode 2 EULIS Code Review task** (`jules-gate review-branch`) against the branch diff (`git diff main...jules/review-<impl_id>`), instructing EULIS to generate a review proposal (`docs/reviews/review_task<N>.md`) and any recommended fixes.
-     * Evaluate and apply the review proposal onto the task branch, re-run local tests via the `flash` test sub-agent, and automatically merge the PR into `main` (`jules-gate pr-merge`).
+     * Use the complete retrieval sequence to integrate the review:
+       1. Dispatch review: `jules-gate review-branch <branch> <base>`
+       2. Wait token-free: `jules-gate wait <review_session_id> --interactive`
+       3. Pull report & fixes: `jules-gate verify <review_session_id> <branch> --skip-ci`
+       4. Inspect `docs/reviews/review_<branch>.md` and merge via `jules-gate pr-merge` or `jules-gate merge`.
 
 10. **Parallel Wave Sub-Agent Fan-Out & Decoupled Pipelining Protocol:**
     * **Sub-Agent Fan-Out Pattern:** When multiple independent Jules tasks run in parallel, spawn an isolated `flash` sub-agent for each task. Each sub-agent owns its individual lifecycle: `jules remote new` ➔ `jules-gate wait <id> --interactive` ➔ `jules-gate verify <id> <base> --skip-ci` ➔ `jules-gate merge <id> <base> --auto-rebase`.

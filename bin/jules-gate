@@ -32,7 +32,7 @@ Commands:
   merge <session_id> [base] [--no-rebase] [--delete-remote] [--sandbox] [--retry-flaky <N>] [--skip-ci] Verify, auto-rebase, and merge review branch.
   pr <session_id> [base_branch] [--sandbox] [--retry-flaky <N>] [--skip-ci] [--title <title>] [--auto-merge] Verify and push review branch, opening a verified GitHub PR via `gh`.
   pr-merge <branch_or_session_id> [base_branch] [--skip-ci] Verify local tests, merge open GitHub PR into base branch, and sync local workspace.
-  review-branch <branch_or_session_id> [base_branch] [--repo <owner/repo>] Dispatch EULIS code review of a branch relative to base branch.
+  review-branch <branch_or_session_id> [base_branch] [--repo <owner/repo>] [--wait] Dispatch EULIS code review of branch diff with guided retrieval.
   lint <repo> [prompt_file]              Pre-flight contract linter to validate repo connection and prompt spec.
   tokens [--json] [--reset]              Display cumulative estimated tokens spared across sessions.
   inspect <session_id> [--json]          Inspect activity stream & extract interactive question from Jules.
@@ -501,17 +501,22 @@ EOF
     review-branch|review-pr)
         TARGET_REF="${1:-}"
         if [[ -z "$TARGET_REF" ]]; then
-            echo "Usage: jules-gate review-branch <branch_or_session_id> [base_branch] [--repo <owner/repo>]"
+            echo "Usage: jules-gate review-branch <branch_or_session_id> [base_branch] [--repo <owner/repo>] [--wait]"
             exit 1
         fi
         shift
         BASE_BRANCH=""
         REPO=""
+        WAIT=false
         while [[ $# -gt 0 ]]; do
             case "$1" in
                 --repo)
                     REPO="$2"
                     shift 2
+                    ;;
+                --wait)
+                    WAIT=true
+                    shift
                     ;;
                 *)
                     if [[ -z "$BASE_BRANCH" ]]; then
@@ -568,7 +573,40 @@ EOF
         echo "📄 Generated review prompt at $PROMPT_FILE (target report: docs/reviews/review_${SAFE_NAME}.md)"
         if command -v jules >/dev/null 2>&1 && [[ -n "$REPO" && "${JULES_GATE_DRY_RUN:-}" != "1" ]]; then
             echo "==> Dispatching EULIS branch review to $REPO..."
-            jules remote new --repo "$REPO" < "$PROMPT_FILE"
+            OUTPUT=$(jules remote new --repo "$REPO" < "$PROMPT_FILE")
+            SESSION_ID=""
+            if [[ "$OUTPUT" =~ Task\ created:\ ([0-9]{18,20}) ]]; then
+                SESSION_ID="${BASH_REMATCH[1]}"
+            elif [[ "$OUTPUT" =~ Session:\ ([0-9]{18,20}) ]]; then
+                SESSION_ID="${BASH_REMATCH[1]}"
+            elif [[ "$OUTPUT" =~ ([0-9]{18,20}) ]]; then
+                SESSION_ID="${BASH_REMATCH[1]}"
+            fi
+            echo "$OUTPUT"
+            if [[ -n "$SESSION_ID" ]]; then
+                echo "========================================================================"
+                echo " EULIS Code Review Dispatched"
+                echo " Review Session ID: $SESSION_ID"
+                echo " Target Report: docs/reviews/review_${SAFE_NAME}.md"
+                echo "========================================================================"
+                echo "👉 To monitor and retrieve the review findings:"
+                echo "   1. Wait for completion:"
+                echo "      jules-gate wait $SESSION_ID --interactive"
+                echo "   2. Pull review report and recommended fixes:"
+                echo "      jules-gate verify $SESSION_ID $REVIEW_BRANCH --skip-ci"
+                echo "   3. Inspect the review findings:"
+                echo "      cat docs/reviews/review_${SAFE_NAME}.md"
+                echo "   4. Merge reviewed branch into $BASE_BRANCH:"
+                echo "      jules-gate merge $REVIEW_BRANCH $BASE_BRANCH --skip-ci"
+                
+                if [[ "$WAIT" == "true" ]]; then
+                    echo "==> [--wait] Executing auto-retrieval sequence..."
+                    "$0" wait "$SESSION_ID" --interactive
+                    "$0" verify "$SESSION_ID" "$REVIEW_BRANCH" --skip-ci
+                    echo "✅ Review retrieval complete. Read the report:"
+                    echo "   cat docs/reviews/review_${SAFE_NAME}.md"
+                fi
+            fi
         else
             echo "💡 Dispatch with: jules remote new --repo <owner/repo> < $PROMPT_FILE"
         fi
