@@ -306,11 +306,20 @@ jules-gate merge <session_id> [base_branch] [--skip-ci]
 2. **Dispatch Mode 2 EULIS Branch Review (`jules-gate review-branch`):**
    - Dispatch an automated EULIS code review against the task branch diff (`git diff main...jules/review-<impl_id>`):
      ```bash
-     jules-gate review-branch jules/review-<impl_id> main
+     jules-gate review-branch jules/review-<impl_id> main [--wait]
      ```
    - EULIS generates a detailed review proposal in `docs/reviews/review_<branch_or_task>.md` along with any recommended fixes.
 3. **Apply Review Fixes, Re-Verify in `flash` Sub-Agent & Auto-Merge (`jules-gate pr-merge`):**
-   - Evaluate and apply the review proposal onto the task branch, re-run local tests via the `flash` test sub-agent, and automatically merge the PR into `main`:
+   - Use the complete retrieval sequence to pull the report and apply recommended fixes:
+     ```bash
+     # 1. Wait for completion:
+     jules-gate wait <review_session_id> --interactive
+     # 2. Pull review report and recommended fixes:
+     jules-gate verify <review_session_id> jules/review-<impl_id> --skip-ci
+     # 3. Inspect the review findings:
+     cat docs/reviews/review_jules_review_<impl_id>.md
+     ```
+   - After evaluation, merge the PR into `main`:
      ```bash
      jules-gate pr-merge jules/review-<impl_id> main --skip-ci
      ```
